@@ -1,0 +1,22 @@
+# Mutating: apply an operator-selected pick location for the currently
+# dispatched pick. Server re-validates against a fresh
+# list_pickable_locations result before applying.
+#
+# Reason codes are encoded in `message` as `[reason=<code>] <detail>`.
+# Common codes:
+#   ok, stale_selection, qty_zero, out_of_zone_unconfirmed, pick_in_progress,
+#   pick_changed, no_active_pick, robot_resolution_failed, tracker_update_failed,
+#   api_timeout, api_error, api_unavailable, api_backoff, missing_pick_token
+
+string cart_barcode                    # Cart the pick is for
+string order_id                        # Order ID of current pick
+string sku                             # SKU being picked
+string line_item_id                    # shipment_line_item_id from PickTicket
+string pick_token                      # Unique dispatch instance token (from PickTicket)
+string new_location_id                 # location_id of selected row from ListAlternateLocations
+string new_location_name               # location_name of selected row (for cross-check + diagnostics)
+bool   operator_confirmed_out_of_zone  # True if the user accepted the out-of-zone warning
+---
+bool   success
+string message
+string new_location          # The applied location name (echo of new_location_name on success)

@@ -1,0 +1,18 @@
+# Request - Confirm a pick was completed
+# Sent from teleop station to shiphero_wms after operator completes pick
+
+string cart_barcode    # Cart the pick was for
+string order_id        # Order ID being picked
+string order_number    # Order number (display)
+string sku             # SKU that was picked
+string line_item_id    # Unique line item ID (from PickTicket)
+string pick_token      # Unique dispatch instance token (from PickTicket)
+int32 qty_picked       # Quantity actually picked
+string tote_barcode    # Tote barcode item was placed in
+---
+# Response
+bool success           # True if pick was recorded in ShipHero
+string message         # Status message
+bool order_complete    # True if this was last pick for the order
+bool batch_complete    # True if this was last pick in batch
+int32 remaining_picks  # Remaining picks in batch

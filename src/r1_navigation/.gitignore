@@ -1,0 +1,23 @@
+# ROS 2
+build/
+install/
+log/
+my_robot_data/
+isaac_ros-dev/
+
+
+# General
+*.swp
+*.swo
+*~
+*.pyc
+__pycache__/
+!.devcontainer/devcontainer.json
+
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.pcd

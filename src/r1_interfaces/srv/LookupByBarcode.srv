@@ -1,0 +1,7 @@
+# Service to lookup warehouse location by barcode
+string barcode                # Barcode to lookup
+float32 timeout               # Timeout in seconds (0 = no timeout, use cached)
+---
+bool found                    # Whether the barcode was found in warehouse
+r1_interfaces/WarehouseLocation location  # Location data if found
+string message                # Status/error message

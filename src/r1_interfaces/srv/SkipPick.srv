@@ -1,0 +1,14 @@
+# Request - Skip the current pick without confirming in ShipHero
+# Sent from teleop station to shiphero_wms when operator cannot/will not pick
+
+string cart_barcode    # Cart the pick was for
+string order_id        # Order ID being skipped
+string sku             # SKU being skipped
+string line_item_id    # Unique line item ID (from PickTicket)
+string pick_token      # Unique dispatch instance token (from PickTicket)
+---
+# Response
+bool success           # True if pick was found and skipped
+string message         # Status message
+bool batch_complete    # True if this was last pick in batch
+int32 remaining_picks  # Remaining picks in batch

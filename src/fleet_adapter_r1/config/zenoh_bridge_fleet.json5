@@ -1,0 +1,37 @@
+// ==========================================================================
+// zenoh-bridge-ros2dds configuration - FLEET side (ROS_DOMAIN_ID = 42)
+//
+// Bridges only the /r1_fleet/* topics between the fleet ROS domain (42) and the
+// robot ROS domain via the robot-side bridge. Because `allow` lists only
+// publishers/subscribers, no services/actions and no other topics (RMF, etc.)
+// are exposed across the bridge.
+//
+// The address of the robot-side bridge is supplied at launch time with the
+// `-e tcp/<robot_host>:7447` flag (e.g. `-e tcp/r1_robot:7447` for the
+// dual-docker verification, or `-e tcp/<robot_ip>:7447` on a real LAN), so the
+// `connect.endpoints` list below is intentionally left empty.
+// ==========================================================================
+{
+  plugins: {
+    ros2dds: {
+      domain: 42,
+      nodename: "zenoh_bridge_fleet",
+      allow: {
+        publishers: ["/r1_fleet/.*"],
+        subscribers: ["/r1_fleet/.*"],
+      },
+    },
+  },
+
+  mode: "router",
+
+  // Listen for incoming zenoh connections (also reachable by the robot bridge).
+  listen: {
+    endpoints: ["tcp/0.0.0.0:7448"],
+  },
+
+  // Robot-side bridge endpoint(s); supplied via `-e tcp/<host>:7447` at launch.
+  connect: {
+    endpoints: [],
+  },
+}

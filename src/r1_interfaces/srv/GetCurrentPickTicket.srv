@@ -1,0 +1,9 @@
+# Request (empty - just query)
+---
+# Response
+bool has_current_order
+string order_id
+string station_id
+bool navigation_complete
+bool job_complete
+bool is_homing

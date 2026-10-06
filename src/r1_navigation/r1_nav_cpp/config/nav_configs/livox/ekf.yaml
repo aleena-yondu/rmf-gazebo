@@ -1,0 +1,221 @@
+# robot_localization EKF -- LIVOX pipeline.
+#
+# Every value below is derived from:
+#   (1) The Livox IMU as a yaw-rate source only.
+#   (2) Galaxea R1 Pro chassis kinematics from
+#       config/nav_configs/livox/nav2_params.yaml:
+#         vx_max            = 1.5 m/s
+#         ax_max            = 2.0 m/s^2
+#         max_angular_vel   = 1.2 rad/s
+#         max_angular_accel = 1.0 rad/s^2
+#       Plus EKF cycle math: 30 Hz EKF -> dt_ekf = 33 ms.
+#                            200 Hz IMU -> dt_imu = 5 ms.
+#                            50 Hz wheel odom -> dt_odom = 20 ms.
+#
+# The EKF consumes /imu/data_bias_corrected from online_imu_bias_estimator.
+# On this branch the estimator's default raw source is /livox/imu, matching
+# main, and can still be overridden with IMU_SOURCE for field experiments.
+#
+# If you switch back to CV7 or another orientation-capable IMU:
+#   1. Point IMU_SOURCE / imu_bias_estimator.input_topic at that driver.
+#   2. Decide whether the bias estimator should publish in the source IMU frame,
+#      project angular velocity into base/lidar yaw, or trust the URDF TF chain.
+#   3. Only then consider re-enabling imu0_config yaw orientation (idx 5) and
+#      imu0_relative. The current Livox/default path intentionally fuses vyaw
+#      only because /livox/imu does not provide trusted yaw attitude.
+
+/**:
+  ros__parameters:
+
+    # =========================================================
+    # EKF cadence
+    # =========================================================
+    # 30 Hz balances downstream Nav2 freshness (controllers consume /odom at
+    # higher rate and benefit from fresh state) against the EKF compute budget.
+    # At 200 Hz corrected IMU and 50 Hz wheel odom the EKF integrates ~7 IMU
+    # msgs + ~2 wheel-odom msgs per cycle.
+    frequency: 30.0
+
+    # 0.2 s = ~40x the corrected IMU sample period (5 ms) and 10x the wheel-odom
+    # period (20 ms). A miss longer than this is a genuine sensor outage,
+    # not a scheduler hiccup; the EKF falls back to dead reckoning.
+    sensor_timeout: 0.2
+
+    # Locks z, roll, pitch (and their derivatives) to zero. The chassis
+    # is a mecanum on flat warehouse floor; the chassis kinematic model
+    # has no out-of-plane state to update.
+    two_d_mode: true
+
+    # No time offset -- predict_to_current_time below handles the
+    # extrapolation cleanly.
+    transform_time_offset: 0.0
+    transform_timeout: 0.0
+    print_diagnostics: false
+
+    # =========================================================
+    # Frames
+    # =========================================================
+    odom_frame: "odom"
+    base_link_frame: "base_link"
+    world_frame: "odom"
+
+    # =========================================================
+    # Wheel odometry: vx/vy velocities only
+    # =========================================================
+    # vyaw is intentionally NOT fused from wheels. The Livox IMU yaw-rate path
+    # is the rotation-rate source; wheel-derived vyaw carries in-place-rotation
+    # slip noise from the mecanum wheels.
+    odom0: "/synchro_odom"
+    # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+    odom0_config: [false, false, false,
+                    false, false, false,
+                    true,  true,  false,
+                    false, false, false,
+                    false, false, false]
+    # Wheel odom publishes at 50 Hz (synchro_drive_odometry publish_rate
+    # in sensor_pipeline.py). EKF @ 30 Hz consumes ~1.7 wheel msgs/cycle,
+    # so 10 = ~200 ms of buffering -- absorbs ~6 EKF cycles of scheduler
+    # hiccups before frames drop.
+    odom0_queue_size: 10
+    odom0_differential: false
+    odom0_relative: false
+
+    # =========================================================
+    # Livox IMU: yaw-rate (idx 11) only
+    # =========================================================
+    # Livox's IMU source is treated as a gyro source for this pipeline. Do not
+    # fuse orientation yaw (idx 5): the Livox path does not provide a trusted
+    # yaw attitude estimate. Long-loop yaw correction stays with slam_toolbox's
+    # map->odom scan matching; the EKF only uses corrected yaw rate between
+    # scan-match updates.
+    #
+    # For CV7/new-IMU experiments, this is the block to revisit. If that IMU
+    # publishes a validated orientation quaternion, idx 5 can be enabled again
+    # with imu0_relative=true; keep it off until that source is on the robot and
+    # checked against scan-match/ground-truth yaw.
+    #
+    # Source: output of online_imu_bias_estimator running on /livox/imu
+    # (configurable via $IMU_SOURCE; see config_resolver.get_imu_source and
+    # sensor_pipeline.py). The estimator subtracts stationary gyro bias and
+    # publishes the corrected IMU on /imu/data_bias_corrected.
+    imu0: "/imu/data_bias_corrected"
+    # [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+    # Only idx 11 (vyaw) is fused.
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    # Bias estimator publishes at 200 Hz / EKF @ 30 Hz = 6.67 IMU msgs per EKF
+    # cycle. 20 msgs ~100 ms of buffering before frames drop.
+    imu0_queue_size: 20
+    imu0_differential: false
+    # No orientation is fused, so relative mode is unnecessary.
+    imu0_relative: false
+    # No linear acceleration is fused; this is a no-op for the current config.
+    imu0_remove_gravitational_acceleration: true
+
+    # =========================================================
+    # Process noise covariance Q
+    # =========================================================
+    # Order: [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az]
+    #
+    # Q[0,0]=Q[1,1]=0.05  (x, y position)
+    #   IMU-independent. Position is integrated from wheel-odom vx/vy;
+    #   this is the per-cycle prediction noise budget. Existing field-
+    #   tuned value, left as-is.
+    #
+    # Q[2,2]=0.06         (z position)
+    #   Decorative -- locked to ~0 by two_d_mode.
+    #
+    # Q[3,3]=Q[4,4]=0.03  (roll, pitch)
+    #   Decorative -- locked to ~0 by two_d_mode.
+    #
+    # Q[5,5]=1.0e-3       (yaw)
+    #   Yaw is not directly measured by the Livox IMU path; this is prediction
+    #   noise for yaw integration from vyaw between scan-match corrections.
+    #
+    # Q[6,6]=Q[7,7]=0.04  (vx, vy) -- chassis-derived
+    #   Per-EKF-cycle max linear velocity change:
+    #     dV_max = ax_max * dt_ekf = 2.0 * 0.033 = 0.066 m/s
+    #     variance_dyn ~ 4.4e-3 (m/s)^2
+    #   Q[6]=Q[7]=0.04 sits ~10x above that to absorb wheel slip during
+    #   accel events and the adaptive wheel-odom covariance from
+    #   synchro_drive_odometry. IMU-independent.
+    #
+    # Q[8,8]=0.04         (vz)        decorative, two_d_mode locks it
+    # Q[9,9]=Q[10,10]=0.01 (vroll, vpitch) decorative, two_d_mode locks them
+    #
+    # Q[11,11]=5.0e-3     (vyaw)
+    #   Per-EKF-cycle max yaw-rate change:
+    #     dW_max = max_angular_accel * dt_ekf = 1.0 * 0.033 = 0.033 rad/s
+    #     variance_dyn ~ 1.1e-3 rad^2/s^2
+    #   Q[11] = 5e-3 sits ~5x above the per-cycle worst-case dynamic vyaw
+    #   change to absorb:
+    #     - un-modeled wheel slip during in-place rotation,
+    #     - motor command transients (chassis_control_node bandwidth),
+    #     - any source covariance mismatch in the Livox yaw-rate stream.
+    #   Wider than that risks under-trusting the yaw-rate source; tighter risks
+    #   the EKF refusing to follow commanded yaw acceleration.
+    #
+    # Q[12,12]=0.01       (ax)        decorative, accel not fused
+    # Q[13,13]=0.01       (ay)        decorative, accel not fused
+    # Q[14,14]=0.015      (az)        decorative, accel not fused
+    process_noise_covariance: [0.05,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.05,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.06,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.03,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.03,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    1.0e-3, 0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.04,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.04,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.04,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,    0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,    0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    5.0e-3, 0.0,    0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,    0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,
+                                0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.015]
+
+    # =========================================================
+    # Initial state covariance P0
+    # =========================================================
+    # x, y (idx 0, 1) = 1e-9
+    #   We anchor the EKF at the origin by construction; the first wheel
+    #   odom + scan-match sequence resolves any genuine offset.
+    #
+    # yaw (idx 5) = 0.01 (rad^2; sigma ~ 5.7 deg)
+    #   Yaw is predicted from vyaw and corrected by slam_toolbox map->odom. Keep
+    #   initial yaw loose enough to converge without trusting a fake IMU yaw.
+    #
+    # Everything else = 1e-9
+    #   Either locked to ~0 by two_d_mode, or expected to be pulled away
+    #   from zero by process noise + measurement updates as soon as the
+    #   first odometry / IMU message arrives.
+    initial_estimate_covariance: [1e-9, 0.0, 0.0, 0.0, 0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9, 0.0,
+                                   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1e-9]
+
+    # =========================================================
+    # Output behavior
+    # =========================================================
+    # Extrapolate the EKF state to wall-clock now() at every periodicUpdate
+    # tick. With a 200 Hz corrected IMU stream, the last IMU sample before the
+    # 30 Hz EKF cycle is at most 5 ms stale.
+    predict_to_current_time: true
+
+    # Publish the fused transform so slam_toolbox and Nav2 can look up
+    # odom -> base_link.
+    publish_tf: True

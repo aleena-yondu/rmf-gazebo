@@ -1,0 +1,8 @@
+# Goal
+float64 height   # -45 to 100. 0-100 maps to squat-stand. <0 adds forward lean to joint 3.
+---
+# Result
+bool success
+---
+# Feedback
+string phase     # "ARMS" or "TORSO"

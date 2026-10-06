@@ -1,0 +1,14 @@
+# Request - Scan a tote onto a cart slot
+string cart_barcode    # Cart to add tote to
+string tote_barcode    # Tote barcode being scanned
+int32 row              # Slot row (-1 for auto next slot)
+int32 col              # Slot column (-1 for auto next slot)
+---
+# Response
+bool success
+string message
+string tote_barcode    # Echo back tote barcode
+int32 tote_id          # ShipHero tote ID (from API lookup)
+string tote_name       # ShipHero tote name (e.g., "Tote-1")
+int32 row              # Actual row assigned
+int32 col              # Actual column assigned

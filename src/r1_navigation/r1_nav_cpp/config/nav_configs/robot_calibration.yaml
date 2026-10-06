@@ -1,0 +1,24 @@
+# Robot Calibration Parameters
+# Adjust these values based on real-world measurements
+
+# Yaw Scale Factor
+# - Default: 1.0 (no correction)
+# - If robot under-rotates: increase this value (e.g., 1.1, 1.2, 1.3)
+# - If robot over-rotates: decrease this value (e.g., 0.9, 0.8)
+#
+# Calibration procedure:
+# 1. Command robot to rotate 360° (or use Nav2 to rotate in place)
+# 2. Measure actual rotation (use SLAM estimate or physical measurement)
+# 3. Calculate: yaw_scale_factor = 360 / actual_degrees_rotated
+#
+# Example: Robot rotates 300° when commanded 360°
+#   yaw_scale_factor = 360 / 300 = 1.20
+
+yaw_scale_factor: 1.093  # Adjust based on calibration
+
+# Note: Low-speed rotations are most affected by:
+# - Motor dead zones
+# - Wheel slip
+# - Encoder quantization
+# - Mechanical backlash
+# You may need values between 1.1-1.5 for typical synchro-drive robots

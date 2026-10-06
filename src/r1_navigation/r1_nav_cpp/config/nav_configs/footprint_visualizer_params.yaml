@@ -1,0 +1,13 @@
+# Configuration for footprint_visualizer node
+/**:
+  ros__parameters:
+    # Frame IDs
+    base_frame: "base_link"
+    workspace_frame: "base_link"
+    
+    # Publishing rate (Hz)
+    publish_rate: 10.0
+    
+    # Robot dimensions (meters)
+    footprint_width: 0.6   # Width of the robot (left-right)
+    footprint_length: 0.7  # Length of the robot (front-back)

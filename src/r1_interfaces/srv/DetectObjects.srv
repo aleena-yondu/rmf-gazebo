@@ -1,0 +1,14 @@
+sensor_msgs/Image image
+string[] prompts
+float32 threshold
+float32 nms_iou
+float32 mask_threshold
+bool unique_enabled true
+string unique_coverage_mode
+int32 unique_topk
+float32 unique_ratio_thresh
+float32 unique_min_unique_area
+---
+r1_interfaces/BoundingBox2D[] detections
+bool success
+string message

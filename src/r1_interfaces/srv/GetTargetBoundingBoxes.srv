@@ -1,0 +1,25 @@
+# Request: get the 3D bounding box of the order's current target bin plus the
+# bounding boxes of its left and right neighbors on the same shelf (for negative
+# highlighting). The "current order" is whichever PickTicket the warehouse
+# server most recently received on /teleop/order.
+string target_type                       # "BIN" (TOTE not yet supported)
+---
+bool found
+r1_interfaces/BoundingBox3D target
+bool has_left
+r1_interfaces/BoundingBox3D left         # zeroed when has_left=false
+bool has_right
+r1_interfaces/BoundingBox3D right        # zeroed when has_right=false
+
+# 3D shelf plane the bounding boxes lie on. Same definition as
+# r1_interfaces/srv/DetectBinsOnShelf.srv. The highlight BT plugin forwards
+# these straight into r1_interfaces/action/HighlightTarget.action so the
+# camera highlight server has full 3D context for the rendered bboxes.
+# All five fields are zeroed when found=false.
+geometry_msgs/Point shelf_start
+geometry_msgs/Point shelf_end
+float32 shelf_bottom_z
+float32 shelf_top_z
+float32 shelf_yaw_rad
+
+string message

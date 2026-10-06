@@ -1,0 +1,49 @@
+apriltag_pose_corrector:
+  ros__parameters:
+    # ---------------------------------------------------------------
+    # TF frames
+    # ---------------------------------------------------------------
+    map_frame: "map"
+    base_frame: "base_link"
+    camera_frame: "zed_tracking_link"
+
+    # ---------------------------------------------------------------
+    # Topics
+    # ---------------------------------------------------------------
+    # Camera node publishes AprilTag detections in camera_frame. Each
+    # PoseStamped's header.frame_id is the integer apriltag_id matching the
+    # bay-level apriltag_id field in warehouse.yaml; its pose is the full
+    # tag pose (position + orientation) in the camera frame.
+    detections_topic: "/detections"
+    # Source-agnostic absolute pose correction consumed by slam_toolbox
+    # localization (PoseWithCovarianceStamped, header.frame_id = map).
+    pose_correction_topic: "/pose_correction"
+
+    # ---------------------------------------------------------------
+    # Detection gates
+    # ---------------------------------------------------------------
+    # Drop a detected tag farther than this from the camera (m).
+    max_tag_range_m: 4.0
+    # Drop observations viewed more edge-on than this (deg). 0 or >=90
+    # disables the gate. Tag pose (esp. yaw) degrades sharply near edge-on.
+    max_incidence_deg: 75.0
+
+    # ---------------------------------------------------------------
+    # Covariance model
+    # ---------------------------------------------------------------
+    # Published stddevs grow linearly with tag range and are inflated by
+    # 1/cos(incidence) as the view goes off-normal (obliqueness):
+    #   sigma_xy  = (xy_stddev_base_m  + xy_stddev_per_m  * range) / max(cos_inc, cos_floor)
+    #   sigma_yaw = (yaw_stddev_base_rad + yaw_stddev_per_m * range) / max(cos_inc, cos_floor)
+    # Reported covariance is sigma^2 on x, y (m^2) and yaw (rad^2).
+    xy_stddev_base_m: 0.05
+    xy_stddev_per_m: 0.03
+    yaw_stddev_base_rad: 0.05
+    yaw_stddev_per_m: 0.05
+    # Clamp on 1/cos(incidence) inflation so a near-edge-on tag can't produce
+    # an unbounded covariance (cos_incidence_floor = cos of the max effective
+    # incidence used in the covariance; 0.2 ~= 78.5 deg).
+    cos_incidence_floor: 0.2
+    # Variance placed on the unobserved planar-SLAM dimensions (z, roll,
+    # pitch) so downstream fusion effectively ignores them.
+    large_variance: 1.0e6

@@ -1,0 +1,367 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="sim_robot">
+    <static>false</static>
+
+    <!-- ==================== BASE LINK ==================== -->
+    <link name="base_footprint">
+      <pose>0 0 0 0 0 0</pose>
+    </link>
+
+    <link name="base_link">
+      <pose>0 0 0.08 0 0 0</pose>
+      <inertial>
+        <mass>20.0</mass>
+        <inertia>
+          <ixx>0.26</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.26</iyy><iyz>0</iyz>
+          <izz>0.20</izz>
+        </inertia>
+      </inertial>
+      <!-- Collision cylinder is SHORTER than the visual so the chassis
+           does NOT touch the ground.  With the full 0.16 m length the
+           bottom of the cylinder sits at z=0 — the same as the ground
+           plane — creating a huge friction contact (0.25 m radius disc)
+           that locks the robot in place.  Shrinking to 0.10 m puts the
+           collision bottom at z=0.03, giving 3 cm ground clearance.
+           Only the wheels and casters touch the ground. -->
+      <collision name="base_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.25</radius>
+            <length>0.10</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="base_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.25</radius>
+            <length>0.16</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.2 0.2 0.8 1</ambient>
+          <diffuse>0.2 0.2 0.8 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="base_footprint_joint" type="fixed">
+      <parent>base_footprint</parent>
+      <child>base_link</child>
+    </joint>
+
+    <!-- ==================== LEFT WHEEL ==================== -->
+    <link name="left_wheel">
+      <pose>0 0.28 0.05 -1.5707963 0 0</pose>
+      <inertial>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.0013</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.0013</iyy><iyz>0</iyz>
+          <izz>0.00125</izz>
+        </inertia>
+      </inertial>
+      <collision name="left_wheel_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="left_wheel_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="left_wheel_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>left_wheel</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1e16</lower>
+          <upper>1e16</upper>
+          <!-- Explicit max motor torque so DART's velocity servo can
+               apply real force through the wheel-ground contact. -->
+          <effort>20.0</effort>
+          <velocity>20.0</velocity>
+        </limit>
+        <dynamics>
+          <friction>0.0</friction>
+          <damping>0.0</damping>
+        </dynamics>
+      </axis>
+    </joint>
+
+    <!-- ==================== RIGHT WHEEL ==================== -->
+    <link name="right_wheel">
+      <pose>0 -0.28 0.05 -1.5707963 0 0</pose>
+      <inertial>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.0013</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.0013</iyy><iyz>0</iyz>
+          <izz>0.00125</izz>
+        </inertia>
+      </inertial>
+      <collision name="right_wheel_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="right_wheel_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.1 0.1 0.1 1</ambient>
+          <diffuse>0.1 0.1 0.1 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="right_wheel_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>right_wheel</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1e16</lower>
+          <upper>1e16</upper>
+          <effort>20.0</effort>
+          <velocity>20.0</velocity>
+        </limit>
+        <dynamics>
+          <friction>0.0</friction>
+          <damping>0.0</damping>
+        </dynamics>
+      </axis>
+    </joint>
+
+    <!-- ==================== FRONT CASTER ==================== -->
+    <!-- Changed from ball joint to FIXED joint.  Ball joints in DART
+         (Ignition's physics engine) can lock the constraint solver and
+         prevent the robot body from translating even when the drive
+         wheels have traction.  With a fixed joint the frictionless
+         sphere (mu=0) simply slides along the ground. -->
+    <link name="caster">
+      <pose>0.18 0 0.025 0 0 0</pose>
+      <inertial>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.00016</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.00016</iyy><iyz>0</iyz>
+          <izz>0.00016</izz>
+        </inertia>
+      </inertial>
+      <collision name="caster_collision">
+        <geometry>
+          <sphere>
+            <radius>0.025</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.0</mu>
+              <mu2>0.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="caster_visual">
+        <geometry>
+          <sphere>
+            <radius>0.025</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0.3 0.3 0.3 1</ambient>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="caster_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>caster</child>
+    </joint>
+
+    <!-- ==================== REAR CASTER ==================== -->
+    <link name="rear_caster">
+      <pose>-0.18 0 0.025 0 0 0</pose>
+      <inertial>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.00016</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.00016</iyy><iyz>0</iyz>
+          <izz>0.00016</izz>
+        </inertia>
+      </inertial>
+      <collision name="rear_caster_collision">
+        <geometry>
+          <sphere>
+            <radius>0.025</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.0</mu>
+              <mu2>0.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name="rear_caster_visual">
+        <geometry>
+          <sphere>
+            <radius>0.025</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0.3 0.3 0.3 1</ambient>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <joint name="rear_caster_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>rear_caster</child>
+    </joint>
+
+    <!-- ==================== LIDAR ==================== -->
+    <link name="lidar_link">
+      <pose>0 0 0.22 0 0 0</pose>
+      <inertial>
+        <mass>0.2</mass>
+        <inertia>
+          <ixx>0.0001</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.0001</iyy><iyz>0</iyz>
+          <izz>0.0001</izz>
+        </inertia>
+      </inertial>
+      <collision name="lidar_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="lidar_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.04</radius>
+            <length>0.04</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.8 0.0 0.0 1</ambient>
+          <diffuse>0.8 0.0 0.0 1</diffuse>
+        </material>
+      </visual>
+      <sensor name="gpu_lidar" type="gpu_lidar">
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <topic>scan</topic>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.14159265</min_angle>
+              <max_angle>3.14159265</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>1</samples>
+              <resolution>1</resolution>
+              <min_angle>0</min_angle>
+              <max_angle>0</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.12</min>
+            <max>25.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0</mean>
+            <stddev>0.005</stddev>
+          </noise>
+        </lidar>
+        <visualize>false</visualize>
+      </sensor>
+    </link>
+
+    <joint name="lidar_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>lidar_link</child>
+    </joint>
+
+    <!-- ==================== PLUGINS ==================== -->
+
+    <!-- Diff-Drive Controller -->
+    <plugin
+      filename="gz-sim-diff-drive-system"
+      name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.56</wheel_separation>
+      <wheel_radius>0.05</wheel_radius>
+      <max_linear_acceleration>0.5</max_linear_acceleration>
+      <max_angular_acceleration>1.5</max_angular_acceleration>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <odom_topic>/model/sim_robot/odometry</odom_topic>
+      <tf_topic>/model/sim_robot/tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
+    </plugin>
+
+    <!-- Joint State Publisher -->
+    <plugin
+      filename="gz-sim-joint-state-publisher-system"
+      name="gz::sim::systems::JointStatePublisher">
+      <joint_name>left_wheel_joint</joint_name>
+      <joint_name>right_wheel_joint</joint_name>
+    </plugin>
+
+  </model>
+</sdf>

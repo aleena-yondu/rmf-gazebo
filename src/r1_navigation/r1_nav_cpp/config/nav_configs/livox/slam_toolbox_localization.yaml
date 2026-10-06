@@ -1,0 +1,196 @@
+slam_toolbox:
+  ros__parameters:
+    # === Plugin params (stock) ===
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    # HuberLoss (vs stock None) robustifies the small Ceres solves that
+    # still run in localization mode (per-scan registration into the local
+    # subgraph). A single mismatched correspondence — common in long
+    # featureless aisles when the matcher fires near a periodic rack pillar
+    # — drives a None-loss solve toward the wrong global minimum; Huber
+    # caps the per-residual contribution and lets the bulk of correct
+    # correspondences dominate. Cheap, defensive.
+    # See agent_context/slam_toolbox_localization_aisle_gameplan.md (Tier 1).
+    ceres_loss_function: HuberLoss
+
+    # See slam_toolbox_mapping.yaml for the rationale. Requires our local
+    # patch to slam_toolbox/solvers/ceres_solver.cpp; ignored by stock builds.
+    # localization mode runs a frozen graph -- this only matters during the
+    # short scan-matching solves at runtime, but kept consistent across modes.
+    ceres_num_threads: 8
+
+    # === ROS topology (robot-specific) ===
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: localization
+
+    # slam_toolbox publishes its rasterised occupancy grid on /map directly.
+    # The costmap StaticLayer subscribes to it from here; there is no
+    # dedicated nav2_map_server in navigation.launch.py at the moment, so
+    # this publisher IS the global /map source for Nav2.
+    map_name: /map
+
+    # map_file_name comes from launch arg / env-var (commented so it doesn't
+    # stomp on the launch). Uncomment for one-off localization runs.
+    # Path is WITHOUT extension — slam_toolbox appends .posegraph + .data.
+    # When set here, this WINS over the `map_file:=` launch arg and the
+    # $LIDAR/$LOCATION/$MAP_NAME env-var default (see launch comments).
+    # map_file_name: /home/nvidia/yondu_ws/520_final
+    map_start_pose: [0.0, 0.0, 0.0]
+    use_map_saver: false
+
+    debug_logging: false
+    throttle_scans: 1
+    pose_correction_verbose: true
+
+    # Heading-gate fix (upstream PR #819) so pure rotations also fire matcher.
+    # MUST stay true. With false the matcher uses a sum-of-squares distance
+    # check that under-fires on pure rotations -- which masks any visible
+    # rotation-only drift symptom by simply not attempting corrections, NOT
+    # by improving them. The matcher MUST fire on rotations for slam_toolbox
+    # to provide the long-loop yaw drift bound this stack depends on
+    # (see imu0_config in ekf.yaml -- index 5 only damps short-term drift
+    # between scan-match corrections, NOT the long-term integral).
+    check_min_dist_and_heading_precisely: true
+
+    # slam_toolbox owns the map->odom TF directly (30 Hz). The AprilTag node no
+    # longer relays/broadcasts this transform; it only publishes absolute robot
+    # pose corrections on /pose_correction, which slam_toolbox fuses as unary
+    # priors in its pose graph (see LocalizationSlamToolbox).
+    transform_publish_period: 0.0333
+
+    # slam_toolbox owns /map directly (see `map_name: /map` above), so this
+    # rasterisation cadence drives how often the costmap StaticLayer sees a
+    # refreshed grid. Kept DISABLED (999999.0) because the periodic raster
+    # is NOT "negligible CPU" on the full warehouse posegraph. Observed
+    # live on 2026-05-22 with this set to 30.0: TF `latest data is at time`
+    # gaps up to 4.18 s, visibly jerky nav, repeated "Lookup would require
+    # extrapolation" spam. The rasterization work is single-threaded and
+    # serialised behind slam_toolbox's scan-matching mutex, so every
+    # periodic raster starves the per-scan matcher (and therefore the
+    # map->odom TF) for the duration of the raster. There is no benign
+    # cadence for this on a posegraph this size.
+    #
+    # Because we are in localization mode against a frozen graph the
+    # one-shot raster published at startup is sufficient -- nothing about
+    # the underlying graph is changing at runtime to invalidate the
+    # costmap StaticLayer's first read.
+    #
+    # If you want a one-shot drift overlay for live debugging without
+    # adding load, call the service on demand instead:
+    #     ros2 service call /slam_toolbox/dynamic_map slam_toolbox/srv/DynamicMap
+    # which builds and publishes the raster once without the periodic stall.
+    map_update_interval: 30.0
+    resolution: 0.05
+
+    # === Sensor model: MUST MATCH MAPPING ===
+    min_laser_range: 0.3
+    # Must match mapping's frozen scan model. Mapping caps at 28 m to stay
+    # inside reliable MID-360 warehouse returns; localization should not
+    # compare live 35 m returns against a graph rasterized at 28 m.
+    max_laser_range: 28.0
+
+    minimum_time_interval: 0.5
+    # 5.0 -> 0.5 (REVERTING the 2026-05-10 band-aid).
+    # The 5.0 m value was an attempt to suppress noisy matches by firing the
+    # matcher less often. It helped symptomatically but hurt architecturally:
+    # EKF drift accumulated more between matches, which forced widening
+    # correlation_search_space_dimension to keep the prior in-window, which
+    # made pillar-aliasing geometrically reachable from a wider prior.
+    # Vicious cycle.
+    #
+    # New mapping/localization baseline (2026-05-20): denser 0.25 m graph
+    # and matching 0.25 m localization trigger cadence. This gives the
+    # frozen graph more anchors in long aisles while keeping the correlation
+    # search window tight enough to avoid repeated-rack aliases.
+    minimum_travel_distance: 0.25
+    minimum_travel_heading: 0.25
+
+    transform_timeout: 0.3
+    tf_buffer_duration: 10.0
+    stack_size_to_use: 120000000
+    scan_queue_size: 10
+
+    # === General params: MUST MATCH MAPPING ===
+    use_scan_matching: true
+    use_scan_barycenter: true
+    scan_buffer_size: 10
+    # Tracks max_laser_range (must match mapping).
+    scan_buffer_maximum_scan_distance: 28.0
+    # 0.1 -> 0.40: strict enough to reject featureless-aisle aliases, but
+    # not so high that legitimate endcap/rack-corner matches are starved.
+    # 0.1 accepted essentially any vaguely-correlated match — including the
+    # aliased ones produced when the matcher snaps to the wrong rack pillar
+    # in a long featureless aisle. In featureless aisles scores genuinely
+    # run 0.15-0.30 and will (correctly) be rejected; at endcaps scores hit
+    # 0.6-0.8 and correction fires cleanly.
+    link_match_minimum_response_fine: 0.40
+    # Runtime radius for pulling frozen graph nodes into the local subgraph
+    # that the matcher compares the current scan against. If the prior is off
+    # by >1.5 m (easy after a featureless 55 m aisle with no successful
+    # corrections), the old 1.5 m radius could pull in ZERO frozen anchors and
+    # the matcher had nothing to lock onto. 3.0 m gives the matcher a real
+    # recovery envelope when re-entering feature-rich areas.
+    # Runtime-only -- doesn't affect what's stored in the map. Match mapping
+    # so saved graph and runtime subgraph neighborhoods are comparable.
+    link_scan_maximum_distance: 3.0
+
+    # Loop closure disabled in localization mode (the loaded graph is frozen).
+    do_loop_closing: false
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.45
+    loop_match_minimum_response_fine: 0.45
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+    loop_search_maximum_distance: 6.0
+
+    # === Correlation grid ===
+    # NOTE: resolution + smear MUST match mapping (those affect how the
+    # correlation grid is *rasterised* and would invalidate response
+    # gates calibrated during mapping). The search *dimension* is just
+    # how far the matcher looks around the prior at runtime — it's safe
+    # to change for localization without touching the saved map.
+    #
+    # 1.5 -> 0.8: REVERSING the previous "widen the window to cover EKF
+    # drift" reasoning, which was wrong for our specific environment.
+    #
+    # The warehouse aisles have ~1.5-3 m rack-pillar pitch. With a search
+    # radius of 0.75 m (dimension=1.5) the correlation grid spanned >= a
+    # full pillar pitch — aliasing to a neighbor pillar was geometrically
+    # reachable from any reasonable EKF prior. That's the "scoot backwards"
+    # symptom: the matcher's argmax sat a full pitch off truth, passed the
+    # (also too-loose) 0.1 response gate above, and the map->odom yank
+    # dragged the pose 1.5-3 m.
+    #
+    # 0.8 dimension = ±0.4 m search radius, still under half the 1.5 m
+    # minimum rack pitch — aliasing to a neighbor pillar is now
+    # geometrically unreachable from a reasonable prior. This works ONLY
+    # because the new minimum_travel_distance (0.25 m) keeps the EKF prior
+    # tight between match attempts. If you ever raise minimum_travel_
+    # distance back above ~1.0 m, you'll need to widen this back up — and
+    # you'll be back in the aliasing failure mode. The right path forward
+    # if EKF drift over an aisle exceeds the 0.4 m search radius is to
+    # upgrade the odom source (Tier 2 FAST-LIO), not widen this window.
+    # See agent_context/slam_toolbox_localization_aisle_gameplan.md (Tier 1).
+    correlation_search_space_dimension: 0.8
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # === Scan matcher: MUST MATCH MAPPING ===
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
+
+    restamp_tf: true

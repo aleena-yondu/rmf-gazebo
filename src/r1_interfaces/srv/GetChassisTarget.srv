@@ -1,0 +1,13 @@
+# Request
+string target_type # "BIN", "BIN_SEARCH", "TOTE", or "CENTER_AISLE"
+                   # BIN_SEARCH returns best_estimate stood-off by the per-row
+                   # search_standoff (used by SearchBinsBtNode).
+---
+# Response
+bool detected  # True if the target's joint pos+width belief confidence is above threshold
+float32 confidence  # Detection confidence (0.0-1.0) for BIN/BIN_SEARCH/TOTE targets
+geometry_msgs/PoseStamped best_estimate  # Best pose (refined if detected, YAML otherwise)
+geometry_msgs/PoseStamped scan_pose  # Pose for barcode scanning (extra standoff)
+string target_barcode  # Expected barcode for the target location (BIN only)
+bool success
+string message

@@ -1,0 +1,27 @@
+# Read-only: list all pickable bins (qty >= 1) for the currently-dispatched
+# SKU on the addressed robot, including the current bin (with is_current=true).
+#
+# The WMS refreshes its location cache as part of this call, so the result
+# represents fresh ShipHero inventory (not stale per-batch cache state).
+#
+# Returned list is sorted by:
+#   1. in_robot_zone DESC (true first)
+#   2. pick_priority DESC
+#   3. quantity DESC
+#   4. location_name ASC
+#
+# Reason codes are encoded in `message` as `[reason=<code>] <detail>`.
+# Common codes:
+#   ok, no_active_pick, pick_changed, robot_resolution_failed,
+#   api_timeout, api_error, api_unavailable, api_backoff, no_alternates
+
+string cart_barcode    # Cart the pick is for
+string order_id        # Order ID of current pick
+string sku             # SKU being picked
+string line_item_id    # shipment_line_item_id from PickTicket
+string pick_token      # Unique dispatch instance token (from PickTicket)
+---
+bool   success                     # True on lookup completion (even if list is empty)
+string message                     # Status / reason code
+string fetched_at_iso              # ISO 8601 timestamp of when the list was refreshed
+AlternateLocation[] locations      # All pickable bins for the SKU (current + alternates)

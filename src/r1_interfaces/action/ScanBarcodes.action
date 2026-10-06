@@ -1,0 +1,15 @@
+# Goal: start a continuous barcode scan. While the action is active the scanner
+# runs its level-continuous job and streams decode frames on the scan topic
+# (r1_interfaces/BarcodeScan). The action stays active until it is canceled or
+# the timeout elapses, whichever comes first.
+float32 timeout            # Seconds before the scan auto-stops; <= 0 runs until canceled
+---
+# Result
+bool success               # True if the scan started and stopped cleanly
+string message             # Human-readable status/error
+uint32 frames_published    # Total scan frames published during the action
+---
+# Feedback
+float32 time_remaining     # Seconds until timeout (<= 0 when no timeout is set)
+uint32 total_frames        # Scan frames published so far
+uint32 last_frame_codes    # Number of barcodes in the most recent frame

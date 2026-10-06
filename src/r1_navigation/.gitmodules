@@ -1,0 +1,9 @@
+[submodule "driver_ws/src/livox_ros_driver2"]
+	path = driver_ws/src/livox_ros_driver2
+	url = https://github.com/rstonickyondu/livox_ros_driver2.git
+[submodule "Livox-SDK2"]
+	path = Livox-SDK2
+	url = https://github.com/Livox-SDK/Livox-SDK2.git
+[submodule "ouster-ros"]
+	path = ouster-ros
+	url = https://github.com/ouster-lidar/ouster-ros.git

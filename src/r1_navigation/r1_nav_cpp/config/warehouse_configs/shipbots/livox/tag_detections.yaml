@@ -1,0 +1,98 @@
+tag_detections_node:
+  ros__parameters:
+    # ---------------------------------------------------------------
+    # Detection threshold
+    # ---------------------------------------------------------------
+    # A barcode must be directly scanned at least this many times
+    # before tag_detections_node reports detected=true to the BT.
+    min_detection_count: 15
+
+    # ---------------------------------------------------------------
+    # BIN target offsets (metres)
+    # ---------------------------------------------------------------
+    # Height-dependent extra standoff added to the bin scan pose
+    # beyond the regular standoff (used for approach before scanning).
+    # Interpolated the same way as the regular standoff:
+    #   height=0  (floor level) → max_bin_scan_extra_standoff
+    #   height=100 (top shelf)  → min_bin_scan_extra_standoff
+    min_bin_scan_extra_standoff: 0.55
+    max_bin_scan_extra_standoff: 0.7
+
+    # Rightward offset applied to the scan pose (compensates for
+    # the barcode scanner being mounted on the left wrist).
+    bin_scan_rightward_offset: 0.25
+
+    # Lateral offset applied to the best_estimate (pick) pose,
+    # in the pick-arm direction.
+    bin_pick_arm_lateral_offset: 0.2
+
+    # ---------------------------------------------------------------
+    # TOTE target offsets (metres)
+    # ---------------------------------------------------------------
+    # Slight extra standoff added to the tote approach pose.
+    tote_extra_standoff: 0.0
+
+    # Lateral offset applied to the tote best_estimate (pick) pose.
+    tote_pick_arm_lateral_offset: 0.175
+
+    # Lateral offset (metres) applied based on the tote column.
+    # col 0 → offset in yaw+90° direction, col 2 → offset in yaw-90°,
+    # col 1 (centre) → no offset.
+    tote_column_lateral_offset: 0.285
+
+    # ---------------------------------------------------------------
+    # Standoff distances (metres)
+    # ---------------------------------------------------------------
+    # Height-dependent standoff is interpolated between min and max.
+    #   height=0  (floor level) → max_standoff
+    #   height=100 (top shelf)  → min_standoff
+    min_standoff: 0.4
+    max_standoff: 0.55
+
+    # Fixed standoff used for the CENTER / CENTER_AISLE pose.
+    center_standoff: 0.6
+
+    # Fallback target height (0-100 scale) when the shelf or tote
+    # height cannot be determined from the warehouse config.
+    default_height: 100.0
+
+    # ---------------------------------------------------------------
+    # Scanner / probabilistic detection parameters
+    # ---------------------------------------------------------------
+    # Total field of view of the barcode scanner (degrees).
+    scanner_fov_deg: 48.0
+
+    # Initial position uncertainty (std-dev in metres) for YAML-based
+    # bin positions before any barcode detections.
+    initial_position_stddev: 0.15
+
+    # Additional position uncertainty (std-dev in metres) accumulated
+    # per bin gap when propagating beliefs along a shelf.
+    spacing_stddev_per_bin: 0.02
+
+    # Floor variance (metres²) to prevent numerical issues in the
+    # Kalman / Bayesian update.
+    min_variance: 0.0001
+
+    # ---------------------------------------------------------------
+    # Camera-driven bin search / PDA-lite fusion parameters
+    # ---------------------------------------------------------------
+    min_bin_confidence: 0.99
+    initial_width_m: 0.30
+    initial_width_stddev: 0.10
+    confidence_k_pos: 0.10
+    confidence_k_width: 0.10
+    pda_gate_chi2: 9.21
+    pda_clutter_density: 0.5
+    pda_detection_prob: 0.9
+    width_measurement_stddev: 0.05
+    camera_pos_measurement_stddev: 0.02
+
+    # Cross-bin no-overlap projection (see yondu/ouster/tag_detections.yaml).
+    min_bin_gap_m: 0.01
+    gap_constraint_stddev_m: 0.001
+    gap_constraint_max_passes: 5
+    min_bin_width_m: 0.05
+
+    # Multi-shelf z partitioning slop (see yondu/ouster/tag_detections.yaml).
+    bay_z_slop_m: 0.02

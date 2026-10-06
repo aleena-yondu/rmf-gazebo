@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Behavior Tree: Run Inference Only
+  
+  This minimal behavior tree runs inference for placing items in a tote.
+  It does not perform any navigation - only calls the /run_inference action server.
+  
+  Usage:
+    ros2 launch r1_nav_cpp run_inference.launch.py
+    
+  Then trigger via:
+    ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{}"
+-->
+
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+
+  <BehaviorTree ID="MainTree">
+    <Sequence name="InferenceSequence">
+      
+      <!-- Debug: Indicate inference is starting -->
+      <DebugPrint debug_message="Starting inference to pick"/>
+      
+      <!-- Run inference with specified parameters -->
+      <RunInference steps="2000" sleep="20" action_type="pick" message="Running inference to place in tote"/>
+      
+      <!-- Debug: Indicate inference completed -->
+      <DebugPrint debug_message="Inference complete"/>
+      
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- TreeNodesModel for Groot / documentation -->
+  <TreeNodesModel>
+
+    <Action ID="RunInference" help="Calls the /run_inference action server to execute policy inference">
+      <input_port name="steps" type="int64_t" default="50">Number of inference timesteps to execute</input_port>
+      <input_port name="sleep" type="int64_t" default="20">Milliseconds to sleep between timesteps</input_port>
+      <input_port name="action_type" type="std::string" default="pick">"pick" or "place" action</input_port>
+      <output_port name="message" type="std::string">Status/feedback message from inference</output_port>
+    </Action>
+
+    <Action ID="DebugPrint" help="Logs debug messages for BT debugging">
+      <input_port name="debug_message" type="std::string">Message to log</input_port>
+      <input_port name="print_pose" type="geometry_msgs::msg::PoseStamped">Optional pose to include in log</input_port>
+    </Action>
+
+  </TreeNodesModel>
+
+</root>

@@ -1,0 +1,28 @@
+# Goal
+# target_type:
+#   "BIN"  -> highlight target_bbox; render negative_bboxes (left/right neighbors) dimmed
+#   "TOTE" -> highlight target_bbox; negative_bboxes ignored (currently unused)
+#   "NONE" -> cancel any active highlight; bbox + shelf plane fields are ignored
+string target_type
+r1_interfaces/BoundingBox3D target_bbox
+r1_interfaces/BoundingBox3D[] negative_bboxes
+
+# 3D shelf plane the bboxes lie on. Same definition as
+# r1_interfaces/srv/DetectBinsOnShelf.srv: shelf_start / shelf_end are the
+# left/right endpoints of the bottom-front edge of the shelf opening
+# (z = shelf_bottom_z), and shelf_yaw_rad is the facing yaw of the shelf
+# normal (pointing into the aisle). Provided so the highlight server can
+# render the bin bboxes inside the correct 3D shelf context (e.g. occlusion
+# by the shelf frame, perspective sanity, etc.) without having to query the
+# warehouse layout itself.
+geometry_msgs/Point shelf_start
+geometry_msgs/Point shelf_end
+float32 shelf_bottom_z
+float32 shelf_top_z
+float32 shelf_yaw_rad
+---
+# Result
+bool success
+---
+# Feedback
+string current_detection_sub_state

@@ -1,0 +1,128 @@
+tag_detections_node:
+  ros__parameters:
+    # ---------------------------------------------------------------
+    # Detection threshold
+    # ---------------------------------------------------------------
+    # A barcode must be directly scanned at least this many times
+    # before tag_detections_node reports detected=true to the BT.
+    min_detection_count: 15
+
+    # ---------------------------------------------------------------
+    # BIN target offsets (metres)
+    # ---------------------------------------------------------------
+    # Height-dependent extra standoff added to the bin scan pose
+    # beyond the regular standoff (used for approach before scanning).
+    # Interpolated the same way as the regular standoff:
+    #   height=0  (floor level) → max_bin_scan_extra_standoff
+    #   height=100 (top shelf)  → min_bin_scan_extra_standoff
+    min_bin_scan_extra_standoff: 0.4
+    max_bin_scan_extra_standoff: 0.4
+
+    # Rightward offset applied to the scan pose (compensates for
+    # the barcode scanner being mounted on the left wrist).
+    bin_scan_rightward_offset: 0.25
+
+    # Lateral offset applied to the best_estimate (pick) pose,
+    # in the pick-arm direction.
+    bin_pick_arm_lateral_offset: 0.2
+
+    # ---------------------------------------------------------------
+    # TOTE target offsets (metres)
+    # ---------------------------------------------------------------
+    # Slight extra standoff added to the tote approach pose.
+    tote_extra_standoff: 0.0
+
+    # Lateral offset applied to the tote best_estimate (pick) pose.
+    tote_pick_arm_lateral_offset: 0.175
+
+    # Lateral offset (metres) applied based on the tote column.
+    # col 0 → offset in yaw+90° direction, col 2 → offset in yaw-90°,
+    # col 1 (centre) → no offset.
+    tote_column_lateral_offset: 0.285
+
+    # ---------------------------------------------------------------
+    # Standoff distances (metres)
+    # ---------------------------------------------------------------
+    # Height-dependent standoff is interpolated between min and max.
+    #   height=0  (floor level) → max_standoff
+    #   height=100 (top shelf)  → min_standoff
+    min_standoff: 0.45
+    max_standoff: 0.6
+
+    # Fixed standoff used for the CENTER / CENTER_AISLE pose.
+    center_standoff: 0.6
+
+    # Fallback target height (0-100 scale) when the shelf or tote
+    # height cannot be determined from the warehouse config.
+    default_height: 100.0
+
+    # ---------------------------------------------------------------
+    # Scanner / probabilistic detection parameters
+    # ---------------------------------------------------------------
+    # Total field of view of the barcode scanner (degrees).
+    scanner_fov_deg: 48.0
+
+    # Initial position uncertainty (std-dev in metres) for YAML-based
+    # bin positions before any barcode detections.
+    initial_position_stddev: 0.15
+
+    # Additional position uncertainty (std-dev in metres) accumulated
+    # per bin gap when propagating beliefs along a shelf.
+    spacing_stddev_per_bin: 0.02
+
+    # Floor variance (metres²) to prevent numerical issues in the
+    # Kalman / Bayesian update.
+    min_variance: 0.0001
+
+    # ---------------------------------------------------------------
+    # Camera-driven bin search / PDA-lite fusion parameters
+    # ---------------------------------------------------------------
+    # Joint pos+width confidence threshold above which a bin is treated
+    # as 'detected' for the chassis-target gate. Replaces the legacy
+    # min_detection_count counter.
+    min_bin_confidence: 0.99
+
+    # Initial bin width prior (metres) and its std-dev. Used as the
+    # mean_width / sqrt(var_width) for every LocationState before any
+    # camera detection arrives.
+    initial_width_m: 0.30
+    initial_width_stddev: 0.10
+
+    # Quadratic confidence formula scaling constants:
+    #   conf = exp(-0.5 * ((σ_pos/k_pos)² + (σ_w/k_w)²))
+    # With these defaults conf reaches 0.99 once both σ_pos and σ_w drop to
+    # ~0.01 m (the floor set by min_variance), which is achievable after
+    # several solid camera detections.
+    confidence_k_pos: 0.10
+    confidence_k_width: 0.10
+
+    # PDA-lite tunables (see HierarchicalWarehouse::recordCameraDetections):
+    pda_gate_chi2: 9.21                # 99% Mahalanobis² gate at df=2
+    pda_clutter_density: 0.5           # expected false alarms per metre per call
+    pda_detection_prob: 0.9            # P(visible bin produces a detection)
+    width_measurement_stddev: 0.05     # bin-width measurement noise at conf=1.0 (m)
+    camera_pos_measurement_stddev: 0.02 # bin-position measurement noise at conf=1.0 (m)
+
+    # ---------------------------------------------------------------
+    # Cross-bin physical-overlap projection
+    # ---------------------------------------------------------------
+    # After PDA + propagation, a final projection enforces a minimum gap
+    # between adjacent bins on the same shelf via iterative pairwise Kalman
+    # pseudo-measurement updates. Set min_bin_gap_m STRICTLY SMALLER than the
+    # smallest true gap between adjacent bins in the warehouse (otherwise
+    # inferred widths will be biased low by `min_bin_gap_m - true_gap`).
+    min_bin_gap_m: 0.01                # 1 cm
+    gap_constraint_stddev_m: 0.001     # 1 mm pseudo-measurement noise → ~hard constraint
+    gap_constraint_max_passes: 5
+    min_bin_width_m: 0.05              # absolute floor on inferred bin width (m)
+
+    # ---------------------------------------------------------------
+    # Multi-shelf z partitioning
+    # ---------------------------------------------------------------
+    # When a single DetectBinsOnShelf request returns detections across all
+    # shelves of a bay, the warehouse partitions them by detection.center.z
+    # against each shelf's [bottom_z, top_z] bracket. bay_z_slop_m widens
+    # each bracket by ±slop on both ends to absorb camera noise at the
+    # shelf-to-shelf transition. Detections that fit no bracket count as
+    # clutter and are not fused.
+    bay_z_slop_m: 0.02

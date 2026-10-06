@@ -1,0 +1,92 @@
+# Configuration for synchro_drive_odometry node
+#
+# This file is the standalone reference. The launch files
+# (lifelong.launch.py, mapping.launch.py) plumb the same knobs through
+# parameter dicts and may override individual values per-pipeline.
+/**:
+  ros__parameters:
+    # Wheel parameters (meters)
+    wheel_radius: 0.076
+    wheel_base_radius: 0.327
+    # HDAS currently publishes wheel velocity as linear wheel speed (m/s).
+    # Keep default mps to preserve deployed behavior. Set radps only if the
+    # source publisher is verified to provide drive-joint angular velocity.
+    wheel_velocity_units: "mps"  # "mps" or "radps"
+
+    # Frame IDs
+    odom_frame: "odom"
+    base_frame: "base_link"
+
+    # TF publishing (set to false if using robot_localization)
+    publish_tf: true
+
+    # Output rate cap (Hz) for the published /synchro_odom message + TF.
+    # Pose is integrated at the full input rate (HDAS 200 Hz on this
+    # platform); this only throttles what gets put on the wire. Choose
+    # >= EKF rate (30 Hz) plus headroom -- 50 Hz gives the EKF ~1.6 samples
+    # per periodicUpdate cycle without flooding its measurement queue.
+    # Set to 0 (or negative) to disable gating and publish on every input
+    # frame; only useful when debugging odometry timing directly.
+    publish_rate: 50.0
+
+    # Topic names
+    # Subscribe directly to the raw HDAS publisher; timestamp_corrector is no
+    # longer in the chain (HDAS clock is system-aligned within ~1 ms as of
+    # 2026-05-04 -- see r1_nav_cpp/scripts/hdas_clock_probe.py).
+    chassis_feedback_topic: "/hdas/feedback_chassis"
+    publish_topic: "/synchro_odom"
+    # Subscriber history for the raw 200 Hz chassis feedback stream. 50 frames
+    # is ~250 ms of buffering, enough to absorb short executor scheduling
+    # stalls without losing HDAS's true 5 ms message spacing. Keep best_effort
+    # + volatile in code so this subscriber cannot back-pressure HDAS.
+    chassis_feedback_qos_depth: 50
+
+    # Optional JointState name validation. Omit both arrays to preserve legacy
+    # HDAS indexing: position[0..2] are steering angles and velocity[0..2] are
+    # wheel speeds. If both lists are provided with 3 names and JointState.name
+    # is populated, the node resolves indices by name at startup and warns/skips
+    # on mismatches. Do not set these to [] in launch-loaded YAML: ROS launch
+    # cannot infer the type of an empty sequence.
+    # steer_joint_names: ["front_left_steer", "front_right_steer", "rear_steer"]
+    # drive_joint_names: ["front_left_drive", "front_right_drive", "rear_drive"]
+
+    # ── Calibration scales (applied exactly once, in the input callback) ──
+    # See scripts/wheel_calib/calibrate_rotation.py for yaw_scale_factor.
+    vx_scale_factor: 1.0
+    vy_scale_factor: 1.0
+    yaw_scale_factor: 1.0
+
+    # Deadband on the final body twist (m/s, rad/s).
+    min_linear_velocity: 0.001
+    min_angular_velocity: 0.001
+
+    # ── Wheel kinematics tuning ──
+    # Per-wheel mechanical zero offsets [front-left, front-right, rear] (rad).
+    # Subtracted from the reported steer angle so a non-zero mechanical
+    # zero doesn't fold straight into a vy bias.
+    steer_offsets_rad: [0.0, 0.0, 0.0]
+
+    # Soft weight on the perpendicular ("zero-slip") constraint in the
+    # weighted-LSQ wheel-twist solve. Drive constraints are weight 1.0.
+    # 1.0 = pure ICR model (over-trusts no-slip during pivots);
+    # 0.0 = ignore no-slip entirely (loses uniqueness near rest).
+    # 0.2 is a good balance for a 3-wheel synchro drive.
+    slip_constraint_weight: 0.2
+
+    # Per-wheel speed (m/s) below which we declare the body twist exactly
+    # zero. Replaces the old summed-speed heuristic.
+    per_wheel_speed_threshold: 0.005
+
+    # Upper bound on the integration step (s). Frames spaced longer than
+    # this are clamped (and a throttled WARN is emitted).
+    max_dt: 0.1
+
+    # ── Adaptive published covariance ──
+    # var_lin = base_linear_variance + slip_variance_gain * residual^2
+    #                                + omega_variance_gain * |wz|
+    # var_yaw = base_yaw_variance    + yaw_slip_variance_gain * residual^2
+    base_linear_variance: 0.005
+    base_yaw_variance: 0.05
+    slip_variance_gain: 2.0
+    omega_variance_gain: 0.05
+    yaw_slip_variance_gain: 2.0

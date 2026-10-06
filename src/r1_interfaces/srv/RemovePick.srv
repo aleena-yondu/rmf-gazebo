@@ -1,0 +1,6 @@
+# Request
+string order_id    # The order ID to remove from queue
+---
+# Response
+bool success       # True if the order was found and removed
+string message     # Status message

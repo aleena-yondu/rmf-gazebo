@@ -1,0 +1,12 @@
+# Request - Get info about a specific cart
+string cart_barcode    # Cart barcode to query (empty = all carts)
+---
+# Response
+bool success
+string message
+string status          # setup, ready, in_progress, exhausted
+int32 total_totes      # Number of totes configured on cart
+int32 available_totes  # Totes without orders assigned
+int32 totes_with_orders # Totes with orders assigned
+string current_batch_id # Current batch ID if any
+bool is_exhausted      # True if no available totes

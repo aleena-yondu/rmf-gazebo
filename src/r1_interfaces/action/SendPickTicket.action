@@ -1,0 +1,11 @@
+# Goal
+string station_id
+string operation
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string current_status
+float32 distance_remaining

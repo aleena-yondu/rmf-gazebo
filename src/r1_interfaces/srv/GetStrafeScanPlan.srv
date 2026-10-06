@@ -1,0 +1,13 @@
+# Request
+geometry_msgs/PoseStamped robot_pose   # current robot pose in map frame (from TF)
+string target_type                     # "BIN" (others reserved)
+---
+# Response
+bool success
+string message
+geometry_msgs/PoseStamped start_pose   # first waypoint: clamped closest point on scan line, facing bay
+geometry_msgs/PoseStamped target_pose  # final waypoint = scan_pose; the closed-loop strafe goal
+float32 strafe_dist                    # signed along-line offset start->scan point (+left/-right, body +Y)
+float32 suggested_time_allowance       # |strafe_dist|/speed with margin, for the Strafe node
+geometry_msgs/Point line_start         # clamped scan-line extent endpoints (map, debug/viz)
+geometry_msgs/Point line_end

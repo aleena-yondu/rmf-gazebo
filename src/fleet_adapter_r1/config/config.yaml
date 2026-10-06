@@ -1,0 +1,94 @@
+# ============================================================================ #
+# R1 fleet adapter configuration
+# ============================================================================ #
+
+rmf_fleet:
+  name: "r1_fleet"
+
+  limits:
+    linear: [1.0, 0.5] # [max velocity (m/s), max acceleration (m/s^2)]
+    angular: [0.6, 0.6] # [max velocity (rad/s), max acceleration (rad/s^2)]
+
+  profile: # Robot profile modelled as a circle
+    footprint: 0.5 # radius (m)
+    vicinity: 0.6 # radius (m)
+
+  reversible: False # R1 navigates forwards only
+
+  battery_system:
+    voltage: 48.0 # V
+    capacity: 30.0 # Ah
+    charging_current: 20.0 # A
+
+  mechanical_system:
+    mass: 120.0 # kg
+    moment_of_inertia: 25.0 # kg.m^2
+    friction_coefficient: 0.22
+
+  ambient_system:
+    power: 30.0 # W (compute / sensors)
+
+  tool_system:
+    power: 100.0 # W (manipulation arms)
+
+  recharge_threshold: 0.20 # SOC below which robots stop accepting tasks
+  recharge_soc: 0.90 # SOC robots charge up to during recharge tasks
+
+  publish_fleet_state: 2.0 # FleetState publish frequency (Hz); 0 disables
+  account_for_battery_drain: True
+  lane_merge_distance: 0.3 # m, how close the robot must be to merge onto a lane
+
+  task_capabilities:
+    loop: True # navigation / patrol / go_to_place tasks
+    delivery: False
+    clean: False
+    finishing_request: "park" # [park, charge, nothing]
+    actions: ["pick", "place", "approach_bin"] # custom RMF perform_action categories
+
+  # Repurposed for the ROS (zenoh-bridged) robot interface instead of REST.
+  fleet_manager:
+    state_topic: "/r1_fleet/robot_state"
+    nav_request_topic: "/r1_fleet/nav_request"
+    action_request_topic: "/r1_fleet/action_request"
+    mode_request_topic: "/r1_fleet/mode_request"
+    nominal_linear_speed: 0.5 # m/s, used to estimate remaining nav duration
+
+# ============================================================================ #
+# Coordinate transform between the RMF and robot frames.
+# The R1 already localizes in a metric map frame, so we use an identity
+# transform: RMF coordinates == robot map coordinates. To recalibrate, record
+# >= 4 matching points in each frame below.
+# ============================================================================ #
+reference_coordinates:
+  rmf:
+    [
+      [16.8, -9.6],
+      [20.65, -9.95],
+      [20.4, -13.6],
+      [16.5, -13.35],
+      [23.2, -2.0],
+      [22.0, -15.7],
+    ]
+  robot:
+    [
+      [2.415, 0.655],
+      [6.343, 0.385],
+      [6.119, -3.29],
+      [2.226, -3.036],
+      [8.869, 8.383],
+      [7.697, -5.43],
+    ]
+
+# ============================================================================ #
+# Per-robot configuration
+# ============================================================================ #
+robots:
+  brunson:
+    robot_config:
+      max_delay: 15.0 # allowed seconds of delay before replanning
+    rmf_config:
+      robot_state_update_frequency: 5
+      start:
+        map_name: "L1"
+      charger:
+        waypoint: "charging"

@@ -1,0 +1,60 @@
+{
+    "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+    "name": "Yondu Nav2 Humble (L4T R36.3)", 
+    "image": "rstonick/yondu-nav:v7",
+    "runArgs": [
+        "--network=host",
+        "--ipc=host",
+        "--privileged",
+        "--runtime=nvidia",
+        "--gpus=all",
+        "--group-add=video",
+        "--cap-add=SYS_NICE",
+        "--ulimit=rtprio=99",
+        "--ulimit=memlock=-1",
+        "--hostname=nvidia-desktop"
+    ],
+    "forwardPorts": [],
+
+    "containerEnv": {
+        "ROS_DOMAIN_ID": "${localEnv:ROS_DOMAIN_ID}",
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "QT_X11_NO_MITSHM": "1",
+        "NVIDIA_VISIBLE_DEVICES": "all",
+        "NVIDIA_DRIVER_CAPABILITIES": "all"
+    },
+
+    "mounts": [
+        "type=volume,target=/var/cache/apt,source=apt-cache",
+        "type=volume,target=/home/admin/.cache,source=nvidia-cache",
+        "source=${localEnv:HOME}/galaxea-logging,target=/galaxea-logging,type=bind,consistency=cached",
+        "source=${localEnv:HOME}/galaxea/install,target=/galaxea/install,type=bind,consistency=cached",
+        "type=volume,target=/r1_navigation/.colcon,source=colcon-cache",
+        "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
+    ],
+
+    "postCreateCommand": "sudo usermod -aG video nvidia",
+
+    "workspaceMount": "source=${localWorkspaceFolder},target=/r1_navigation,type=bind",
+    "workspaceFolder": "/r1_navigation",
+
+    "remoteUser": "nvidia",
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-iot.vscode-ros",
+                "ms-python.python",
+                "smilerobotics.urdf",
+                "ms-vscode.cmake-tools",
+                "twxs.cmake",
+                "eamodio.gitlens",
+                "github.copilot",
+                "ms-python.vscode-pylance",
+                "redhat.vscode-yaml",
+                "copilot-chat.copilot-chat",
+                "zeroregister.vscode-tmux-manager"
+            ]
+        }
+    }
+}

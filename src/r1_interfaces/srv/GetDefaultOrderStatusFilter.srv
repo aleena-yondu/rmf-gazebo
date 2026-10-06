@@ -1,0 +1,15 @@
+# Request - empty.
+# Read-only getter so the GUI / external tooling can discover the WMS node's
+# configured `default_order_status_filter` without parsing the YAML directly.
+---
+# Response
+bool success
+string message
+# WMS node's current default order_status_filter (e.g. "yondu", "today",
+# "tomorrow" for ShipHero). The GUI uses this to pre-populate the per-cart
+# filter dropdown in the SetupCart dialog.
+string order_status_filter
+# Canonical accepted filter values for the currently active backend provider
+# (sourced from backend.valid_order_status_filters()). Allows the GUI to
+# render the dropdown options without hard-coding a list in two places.
+string[] valid_filters

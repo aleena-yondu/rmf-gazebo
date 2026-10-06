@@ -1,0 +1,6 @@
+# Request
+string order_id    # The order ID to mark as complete
+---
+# Response
+bool success       # True if the job was marked as complete
+string message     # Status message

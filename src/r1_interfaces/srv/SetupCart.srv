@@ -1,0 +1,30 @@
+# Request - Setup a complete cart with all totes in one call
+# This is the simplified workflow: operator scans cart, scans all totes locally,
+# then sends everything to the WMS in one service call
+string cart_barcode         # Cart barcode/QR code
+int32 rows                  # Number of tote rows (default 4)
+int32 cols                  # Number of tote columns (default 3)
+string[] tote_barcodes      # List of tote barcodes in order (row-major: [0,0], [0,1], [0,2], [1,0], ...)
+# Per-cart order-status filter applied when fetching batches for this cart.
+# Empty string ("") means "use the WMS node's default_order_status_filter".
+# Provider-specific accepted values (e.g. ShipHero: "yondu", "today",
+# "tomorrow"; Trackstar: "open", "picked", "shipped"). Validated by the WMS
+# node against backend.valid_order_status_filters(); invalid values are
+# rejected with success=false.
+string order_status_filter
+---
+# Response
+bool success
+string message
+string cart_barcode         # Echo back the cart barcode
+int32 total_slots           # Total available slots (rows * cols)
+int32 totes_registered      # Number of totes successfully registered
+string[] tote_names         # Names assigned to each tote (same order as input)
+# Effective ``order_status_filter`` the WMS will use when fetching
+# batches for this cart. Equal to the request value if the operator
+# selected one explicitly, otherwise the WMS node default that the
+# stored empty value resolves to at fetch time. The GUI surfaces this
+# alongside the "Cart: <name>" header so the operator always knows
+# which filter the cart is paired with. Additive field -- older
+# clients that don't read it continue to work unchanged.
+string order_status_filter

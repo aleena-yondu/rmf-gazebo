@@ -1,0 +1,15 @@
+# Request - Clear all order assignments from cart totes
+string cart_barcode         # Cart barcode to clear
+bool update_shiphero        # If true, update order status in ShipHero API
+string fulfillment_status   # Status to set (default: "fulfilled")
+string clear_mode           # "safe" preserves completed picks; "full"/empty resets all totes
+---
+# Response
+bool success
+string message
+int32 totes_cleared         # Number of totes that had orders cleared
+string[] cleared_order_ids  # Order IDs that were cleared
+int32 totes_retained        # Totes held unavailable because they contain completed picks
+int32 line_items_cleared    # Non-complete line-item rows removed
+string[] unlocked_shipment_ids
+string[] held_shipment_ids

@@ -1,0 +1,6 @@
+# Request - Delete a cart completely from the system
+string cart_barcode         # Cart barcode to delete
+---
+# Response
+bool success
+string message

@@ -1,0 +1,7 @@
+# Service to update a location's detection state from barcode scan
+string barcode                          # Detected barcode
+geometry_msgs/PoseStamped detected_pose # Pose where barcode was detected
+---
+bool success                            # Whether update was successful
+string location_key                     # Location key that was updated (e.g., "X2-01-A-1")
+string message                          # Status/error message

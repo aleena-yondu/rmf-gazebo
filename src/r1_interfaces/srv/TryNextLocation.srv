@@ -1,0 +1,14 @@
+# Request - Try an alternate pick location for the current pick
+# Sent from teleop station to shiphero_wms when operator cannot pick from current location
+
+string cart_barcode    # Cart the pick is for
+string order_id        # Order ID of current pick
+string sku             # SKU being picked
+string line_item_id    # Unique line item ID (from PickTicket)
+string pick_token      # Unique dispatch instance token (from PickTicket)
+---
+# Response
+bool success              # True if an alternate location was found and applied
+string message            # Status message
+string new_location       # The new bin location string (e.g. "Y50-03-B-02")
+bool has_more_alternates  # True if there are still more alternates available

@@ -1,0 +1,85 @@
+{
+    "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+    "name": "test", 
+    
+    // Use the local Isaac ROS image
+    "image": "rstonick/yondu-nav:v4-scanner",
+    
+    "runArgs": [
+        "--network=host",
+        "--ipc=host",
+        "--privileged",
+        "--runtime=nvidia",
+        "--gpus=all",
+        "--group-add=video",
+        "--cap-add=SYS_NICE",
+        "--cap-add=NET_ADMIN",
+        "--ulimit=rtprio=99",
+        "--ulimit=memlock=-1",
+        "--hostname=nvidia-desktop",
+        "--device=/dev/bus/usb"
+    ],
+    
+    "forwardPorts": [],
+
+    "containerEnv": {
+        "ROS_NAMESPACE": "${localEnv:ROS_NAMESPACE}",
+        "ROS_DOMAIN_ID": "${localEnv:ROS_DOMAIN_ID:0}",
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "QT_X11_NO_MITSHM": "1",
+        "NVIDIA_VISIBLE_DEVICES": "all",
+        "NVIDIA_DRIVER_CAPABILITIES": "all"
+    },
+
+    "mounts": [
+        // Persistent apt cache for faster rebuilds
+        "type=volume,target=/var/cache/apt,source=apt-cache",
+        // Persistent user cache (pip, etc.)
+        "type=volume,target=/home/nvidia/.cache,source=nvidia-cache",
+        // Persistent colcon build cache
+        "type=volume,target=/home/nvidia/yondu_ws/.colcon,source=colcon-cache",
+        // X11 socket for GUI apps
+        "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
+        // Mount galaxea install directory
+        "source=${localEnv:HOME}/galaxea/install,target=/home/nvidia/galaxea/install,type=bind,consistency=cached",
+        // Mount /opt/galaxea for hardware configs
+        "source=/opt/galaxea,target=/opt/galaxea,type=bind,consistency=cached"
+    ],
+
+    // Simple post-create command - just ensure video group membership and copy gitconfig if it exists and is different
+    "postCreateCommand": "sudo usermod -aG video nvidia || true && if [ -f ~/yondu_ws/.devcontainer/.gitconfig ] && ! cmp -s ~/yondu_ws/.devcontainer/.gitconfig ~/.gitconfig; then cp ~/yondu_ws/.devcontainer/.gitconfig ~/.gitconfig; fi",
+
+    "workspaceMount": "source=${localEnv:HOME}/yondu_ws,target=/home/nvidia/yondu_ws,type=bind,consistency=cached",
+    "workspaceFolder": "/home/nvidia/yondu_ws",
+
+    "remoteUser": "nvidia",
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-iot.vscode-ros",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "smilerobotics.urdf",
+                "ms-vscode.cmake-tools",
+                "twxs.cmake",
+                "eamodio.gitlens",
+                "github.copilot",
+                "github.copilot-chat",
+                "redhat.vscode-yaml",
+                "zeroregister.vscode-tmux-manager"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/bin/bash",
+                        "args": ["-l"]
+                    }
+                },
+                "python.defaultInterpreterPath": "/usr/bin/python3",
+                "cmake.configureOnOpen": false
+            }
+        }
+    }
+}

@@ -1,0 +1,125 @@
+slam_toolbox:
+  ros__parameters:
+    # === Plugin params (stock) ===
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # See slam_toolbox_mapping.yaml for the rationale. Requires our local
+    # patch to slam_toolbox/solvers/ceres_solver.cpp; ignored by stock builds.
+    ceres_num_threads: 4
+
+    # === ROS topology (robot-specific) ===
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    # lifelong_slam_toolbox_node ignores `mode` (executable selects behavior).
+    mode: lifelong
+    use_map_saver: true
+
+    # The lifelong node force-disables interactive mode in its constructor
+    # regardless of this key; set false so the config reflects reality.
+    enable_interactive_mode: false
+
+    # map_file_name set by launch file
+    map_start_pose: [0.0, 0.0, 0.0]
+
+    debug_logging: false
+    throttle_scans: 1
+    # slam_toolbox owns the map->odom TF directly. The AprilTag node no longer
+    # relays/broadcasts this transform; it only publishes absolute robot pose
+    # corrections on /pose_correction. Mirrors slam_toolbox_localization.yaml
+    # and ouster/slam_toolbox_lifelong.yaml.
+    transform_publish_period: 0.1
+    # 5.0 -> 60.0: periodic rasterization of a full-warehouse posegraph is NOT
+    # cheap -- slam_toolbox_localization.yaml documents 4+ s scan-matcher
+    # stalls observed live (2026-05-22) at even a 30 s cadence, because the
+    # raster is single-threaded and serialised behind the scan-matching mutex.
+    # Lifelong can't disable the raster entirely (the graph really changes and
+    # Nav2's StaticLayer needs refreshes), but live obstacles come from the
+    # local costmap anyway, so a slow cadence is safe. The apriltag relayer
+    # owns map->odom TF at 30 Hz, so raster stalls no longer cause TF gaps --
+    # but the matcher still stalls, so keep this long.
+    map_update_interval: 60.0
+    resolution: 0.05
+
+    # === Sensor model: MUST MATCH MAPPING ===
+    min_laser_range: 0.3
+    max_laser_range: 28.0
+
+    minimum_time_interval: 0.1
+    # 0.5 -> 0.25: match the 2026-05-20 dense-graph mapping baseline so
+    # lifelong-appended nodes have the same spacing as the loaded graph.
+    minimum_travel_distance: 0.25
+    minimum_travel_heading: 0.25
+    # MUST stay true (mirrors mapping + localization): without the precise
+    # heading gate the matcher under-fires on pure rotations and yaw drift
+    # goes uncorrected. See slam_toolbox_localization.yaml for rationale.
+    check_min_dist_and_heading_precisely: true
+
+    transform_timeout: 0.3
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 120000000
+    scan_queue_size: 10
+
+    # === General params: MUST MATCH MAPPING ===
+    use_scan_matching: true
+    use_scan_barycenter: true
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 28.0
+    # 0.1 -> 0.40: same strict gate as mapping/localization. 0.1 accepted the
+    # aliased rack-pillar matches documented in those YAMLs; in lifelong a bad
+    # match is worse than in localization because it gets BAKED INTO the graph.
+    link_match_minimum_response_fine: 0.40
+    # 1.5 -> 3.0: match mapping's recovery envelope after featureless aisles.
+    link_scan_maximum_distance: 3.0
+    do_loop_closing: true
+    # Loop gates aligned with mapping (8 / 0.45 / 0.42): same anti-aliasing
+    # tuning for closures against the loaded graph.
+    loop_match_minimum_chain_size: 8
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.45
+    loop_match_minimum_response_fine: 0.42
+
+    # === Correlation grid: MUST MATCH MAPPING ===
+    # 0.7 -> 0.8: the +/-0.4 m window was calibrated together with the 0.25 m
+    # travel trigger above; keep the pair in sync with mapping/localization.
+    correlation_search_space_dimension: 0.8
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # === Loop closure correlation grid (stock) ===
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+    # 6.0 -> 4.0: match mapping; 6.0 re-enables the adjacent-aisle
+    # false-closure geometry the mapping retune deliberately excluded.
+    loop_search_maximum_distance: 4.0
+
+    # === Scan matcher: MUST MATCH MAPPING ===
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
+    min_pass_through: 2
+    occupancy_threshold: 0.1
+
+    restamp_tf: true
+
+    # === Lifelong-specific parameters (stock) ===
+    lifelong_node_removal_score: 0.04
+    lifelong_iou_match: 0.85
+    lifelong_minimum_score: 0.1
+    lifelong_overlap_score_scale: 0.06
+    lifelong_constraint_multiplier: 0.08
+    lifelong_nearby_penalty: 0.001
+    lifelong_candidates_scale: 0.03
+    lifelong_search_use_tree: false

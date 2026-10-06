@@ -1,0 +1,429 @@
+# ==================================================================================================
+#                       Nav2 Parameters for GPAL Simulation
+#
+# Adapted from nav2_gpal_params.yaml for a simulated diff-drive robot.
+# Key differences from real robot config:
+#   - use_sim_time: true
+#   - Circular footprint (0.25m radius) matching sim_robot model
+#   - robot_base_frame: base_link (DiffDrive plugin publishes odom -> base_link)
+# ==================================================================================================
+
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    enable_stamped_cmd_vel: true
+    controller_frequency: 10.0
+    min_x_velocity_threshold: 0.005
+    min_y_velocity_threshold: 0.005
+    min_theta_velocity_threshold: 0.005
+    transform_tolerance: 1.0
+
+    progress_checker_plugin: "progress_checker"
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.25
+      movement_time_allowance: 30.0
+
+    goal_checker_plugin: "goal_checker"
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      # Y3 targets sit in inscribed space (cost 99) — the robot can only
+      # safely approach to ~0.35 m before the ObstaclesCritic blocks
+      # further motion.  0.40 m lets the robot declare "reached" from
+      # the closest safe distance.
+      xy_goal_tolerance: 0.40
+      # Relaxed from 0.25 rad (14 deg) to 0.50 rad (29 deg) — in narrow
+      # aisles the robot often cannot rotate to the exact shelf-facing
+      # heading due to obstacles on both sides.
+      yaw_goal_tolerance: 0.50
+      stateful: true
+
+    controller_plugins: ["FollowPath"]
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      motion_model: "DiffDrive"
+      time_steps: 40
+      model_dt: 0.1
+      batch_size: 1200
+      iteration_count: 3
+      temperature: 0.35
+      gamma: 0.015
+      # Allow up to 3 optimizer retries before the controller gives up
+      # on a single control cycle.  This prevents transient failures
+      # (especially during large heading changes) from zeroing cmd_vel.
+      retry_attempt_limit: 3
+      # Wider angular sampling (0.50) so the controller can discover
+      # large rotations for aisle entry and U-turns.
+      sampling_std: [0.25, 0.50]
+      vx_max: 0.5
+      # Small backward velocity allowed so the controller can do
+      # 3-point-turn maneuvers when facing away from the path.
+      # Without this, the optimizer fails ("fail to compute path")
+      # because no forward/rotation-only trajectory scores well.
+      vx_min: -0.05
+      wz_max: 1.5
+      ax_max: 0.5
+      ax_min: -0.5
+      az_max: 1.5
+      rotation_scale_factor: 1.0
+
+      critics: [
+        "GoalCritic",
+        "GoalAngleCritic",
+        "ObstaclesCritic",
+        "PathFollowCritic",
+        "PathAngleCritic"
+      ]
+
+      GoalCritic:
+        enabled: true
+        weight: 5.0
+        threshold_to_consider: 1.5
+
+      GoalAngleCritic:
+        enabled: true
+        weight: 3.0
+        threshold_to_consider: 0.8
+
+      ObstaclesCritic:
+        enabled: true
+        weight: 5.0
+        consider_footprint: false
+        collision_cost: 10000.0
+        collision_margin_distance: 0.10
+        # Increased from 0.5 to 1.0 so the critic relaxes obstacle
+        # avoidance earlier on final approach to shelf-adjacent targets.
+        near_goal_distance: 1.0
+        inflation_layer_name: "inflation_layer"
+        cost_power: 1
+        repulsion_weight: 0.5
+        critical_weight: 20.0
+        trajectory_point_step: 2
+
+      PathFollowCritic:
+        enabled: true
+        # Balanced with PathAngleCritic so the robot still makes
+        # forward progress even while correcting heading.  Too low
+        # and the robot will spin endlessly; too high and it will
+        # drive forward with bad heading.
+        weight: 8.0
+        offset_from_furthest: 10
+        threshold_to_consider: 1.2
+
+      PathAngleCritic:
+        enabled: true
+        # Reduced from 15.0 to 8.0 — at 15.0 the critic completely
+        # overwhelmed all other costs during large heading changes,
+        # producing near-zero cmd_vel and freezing the robot.  At 8.0
+        # it still prefers facing the path but allows some forward
+        # motion while turning, preventing the optimizer deadlock.
+        weight: 8.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.5
+        # Increased from 0.7 (40 deg) to 1.0 rad (57 deg) so the
+        # critic doesn't activate during moderate turns.  Warehouse
+        # aisles typically require 90-deg turns; the robot can begin
+        # driving when within ~57 deg of the path heading.
+        max_angle_to_furthest: 1.0
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_smac_planner::SmacPlanner2D"
+      # Tolerance must be >= inscribed radius (0.28 m) so the planner can
+      # accept cells further into the aisle when targets sit close to shelf
+      # walls (Y3 bins are only ~0.15 m from obstacles in the SLAM map).
+      # Matches goal_checker xy_goal_tolerance (0.25 m).
+      tolerance: 0.30
+      downsample_costmap: false
+      downsampling_factor: 1
+      allow_unknown: false
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 5.0
+      motion_model_for_search: "MOORE"
+      cost_travel_multiplier: 2.0
+      use_final_approach_orientation: false
+      smooth_path: true
+
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+    enable_stamped_cmd_vel: true
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+      simulate_ahead_time: 2.0
+      max_rotational_vel: 1.0
+      min_rotational_vel: 0.3
+      rotational_acc_lim: 1.0
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+      simulate_ahead_time: 2.0
+      backup_dist: 0.3
+      backup_speed: 0.15
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+      simulate_ahead_time: 2.0
+      max_linear_vel: 0.5
+      min_linear_vel: 0.1
+      max_angular_vel: 1.0
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    global_frame: odom
+    robot_base_frame: base_link
+    transform_tolerance: 2.0
+
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      do_refinement: true
+      refinement_num: 2
+
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: true
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: true
+      waypoint_pause_duration: 0
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 50
+    default_server_timeout: 40
+    transform_tolerance: 1.5
+    enable_groot_monitoring: False
+
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+
+    default_nav_to_pose_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
+    default_nav_through_poses_bt_xml: "/opt/ros/jazzy/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
+
+    # Leave plugin_lib_names unset. Jazzy already registers the standard BT
+    # nodes. An explicit [] is loaded as "no value" and aborts startup, and
+    # the old Humble library list registers ComputePathToPose twice.
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+# docking_server is not in this list. It has no dock plugins, and its configure
+# error ("Charging dock plugins not given!") aborts every node in the bringup.
+lifecycle_manager_navigation:
+  ros__parameters:
+    use_sim_time: true
+    autostart: true
+    node_names:
+      - map_server
+      - amcl
+      - controller_server
+      - smoother_server
+      - planner_server
+      - route_server
+      - behavior_server
+      - velocity_smoother
+      - collision_monitor
+      - bt_navigator
+      - waypoint_follower
+
+amcl:
+  ros__parameters:
+    use_sim_time: true
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
+    base_frame_id: "base_link"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 25.0
+    laser_min_range: 0.12
+    laser_model_type: "likelihood_field"
+    max_beams: 60
+    max_particles: 2000
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.05
+    update_min_d: 0.05
+    z_hit: 0.5
+    z_max: 0.05
+    z_rand: 0.5
+    z_short: 0.05
+    scan_topic: scan
+    # The old pose (4.33, -1.38) is outside this grid
+    # (x -21.43..-2.55, y 16.51..36.46). Set the real pose with the
+    # RViz 2D Pose Estimate tool, which publishes /initialpose.
+    set_initial_pose: false
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 0.5
+      publish_frequency: 0.5
+      global_frame: map
+      robot_base_frame: base_link
+      # Reduced from 0.22 to 0.18 so the inscribed zone is thinner
+      # around shelves.  The robot often stops ~0.20 m from obstacles
+      # after reaching a shelf target; at 0.22 that puts it in
+      # inscribed (lethal) space and the planner refuses to plan.
+      # Physical safety is maintained by collision_monitor (0.22 m).
+      robot_radius: 0.18
+      resolution: 0.05
+      track_unknown_space: true
+      rolling_window: false
+      transform_tolerance: 2.0
+
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        enabled: true
+        subscribe_to_updates: true
+        transform_tolerance: 0.5
+        map_topic: "/map"
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 6.0
+          raytrace_min_range: 0.12
+          obstacle_max_range: 5.0
+          obstacle_min_range: 0.12
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        inflation_radius: 0.25
+        cost_scaling_factor: 10.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 5.0
+      publish_frequency: 1.0
+      global_frame: odom
+      robot_base_frame: base_link
+      rolling_window: true
+      width: 5
+      height: 5
+      resolution: 0.05
+      robot_radius: 0.18
+      transform_tolerance: 2.0
+
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        enabled: true
+        subscribe_to_updates: true
+        transform_tolerance: 0.5
+        map_topic: "/map"
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 4.0
+          raytrace_min_range: 0.12
+          obstacle_max_range: 3.0
+          obstacle_min_range: 0.12
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 10.0
+        inflation_radius: 0.25
+
+      always_send_full_costmap: true
+
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    enable_stamped_cmd_vel: true
+    smoothing_frequency: 10.0
+    scale_velocities: false
+    feedback: "OPEN_LOOP"
+    max_velocity: [0.5, 0.0, 1.5]
+    min_velocity: [-0.05, 0.0, -1.5]
+    max_accel: [0.5, 0.0, 1.5]
+    max_decel: [-0.5, 0.0, -1.5]
+    odom_topic: "/odom"
+    odom_duration: 0.1
+    deadband_velocity: [0.001, 0.001, 0.001]
+    velocity_timeout: 1.0
+
+collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+    enabled: True
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    transform_tolerance: 2.0
+    source_timeout: 0.5
+    stop_pub_timeout: 0.2
+    enable_stamped_cmd_vel: True
+    polygons: ["PolygonStop"]
+    PolygonStop:
+      type: "circle"
+      radius: 0.22
+      action_type: "stop"
+      min_points: 12
+      visualize: False
+      polygon_pub_topic: "polygon_stop"
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "scan"

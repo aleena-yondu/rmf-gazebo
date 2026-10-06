@@ -1,0 +1,9 @@
+# Goal
+r1_interfaces/PickTicket pick_ticket
+string target_type # "BIN" or "TOTE"
+---
+# Result
+bool success
+---
+# Feedback
+string current_sub_state

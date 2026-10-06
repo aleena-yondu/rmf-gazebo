@@ -1,0 +1,224 @@
+warehouse:
+  barcode_pattern: '{side}{row}-{bay:02d}-{shelf}-{bin:02d}'
+  shelf_beam_width: 0.095
+  tote_row_heights:
+    0: 0
+    1: 15
+    2: 80
+    3: 100
+  tote_row_heights_meters:
+    0: 0.27
+    1: 0.74
+    2: 1.0
+    3: 1.18
+  rows:
+    Y50:
+      name: Y50
+      side: Y
+      row_number: 50
+      shelf_heights:
+        A: -25
+        B: 15
+        C: 100
+      shelf_heights_meters:
+        A: 0.27
+        B: 0.85
+        C: 1.35
+      search_height: 10
+      search_standoff: 0.6
+      segments:
+      - yaw_deg: -90.48
+        start_point:
+          x: 0.63
+          y: -1.268
+        end_point:
+          x: 5.753
+          y: -1.311
+        bays:
+          '01':
+            start_distance: 0.0
+            end_distance: 2.562
+            start_apriltag_id: 0
+            end_apriltag_id: 1
+            tote_drop:
+              x: 9.22
+              y: 0.516
+              yaw_deg: 89.52
+            shelves:
+              A:
+                name: A
+                num_bins: 9
+              B:
+                name: B
+                num_bins: 10
+              C:
+                name: C
+                num_bins: 8
+          '02':
+            start_distance: 2.562
+            end_distance: 5.123
+            start_apriltag_id: 1
+            end_apriltag_id: 2
+            tote_drop:
+              x: 9.22
+              y: 0.516
+              yaw_deg: 89.52
+            shelves:
+              A:
+                name: A
+                num_bins: 8
+              B:
+                name: B
+                num_bins: 10
+              C:
+                name: C
+                num_bins: 10
+      - yaw_deg: -91.36
+        start_point:
+          x: 6.044
+          y: -1.469
+        end_point:
+          x: 18.778
+          y: -1.772
+        bays:
+          '03':
+            start_distance: 0.0
+            end_distance: 2.547
+            start_apriltag_id: 3
+            end_apriltag_id: 4
+            tote_drop:
+              x: 9.22
+              y: 0.516
+              yaw_deg: 89.52
+            shelves:
+              A:
+                name: A
+                num_bins: 7
+              B:
+                name: B
+                num_bins: 8
+              C:
+                name: C
+                num_bins: 8
+          '04':
+            start_distance: 2.547
+            end_distance: 5.095
+            start_apriltag_id: 4
+            end_apriltag_id: 5
+            tote_drop:
+              x: 9.22
+              y: 0.516
+              yaw_deg: 89.52
+            shelves:
+              A:
+                name: A
+                num_bins: 8
+              B:
+                name: B
+                num_bins: 8
+              C:
+                name: C
+                num_bins: 8
+          '05':
+            start_distance: 5.095
+            end_distance: 7.642
+            start_apriltag_id: 5
+            end_apriltag_id: 8
+            tote_drop:
+              x: 19.436
+              y: -1.605
+              yaw_deg: -90.48
+            shelves:
+              A:
+                name: A
+                num_bins: 8
+              B:
+                name: B
+                num_bins: 8
+              C:
+                name: C
+                num_bins: 8
+          '06':
+            start_distance: 7.642
+            end_distance: 10.19
+            start_apriltag_id: 8
+            end_apriltag_id: 7
+            tote_drop:
+              x: 19.436
+              y: -1.605
+              yaw_deg: -90.48
+            shelves:
+              A:
+                name: A
+                num_bins: 8
+              B:
+                name: B
+                num_bins: 8
+              C:
+                name: C
+                num_bins: 8
+          '07':
+            start_distance: 10.19
+            end_distance: 12.737
+            start_apriltag_id: 7
+            end_apriltag_id: 6
+            tote_drop:
+              x: 19.436
+              y: -1.605
+              yaw_deg: -90.48
+            shelves:
+              A:
+                name: A
+                num_bins: 8
+              B:
+                name: B
+                num_bins: 8
+              C:
+                name: C
+                num_bins: 8
+      - yaw_deg: -91.33
+        start_point:
+          x: 21.286
+          y: -1.81
+        end_point:
+          x: 28.833
+          y: -1.985
+        bays:
+          08:
+            start_distance: 0.0
+            end_distance: 3.774
+            start_apriltag_id: 9
+            end_apriltag_id: 10
+            tote_drop:
+              x: 19.436
+              y: -1.605
+              yaw_deg: -90.48
+            shelves:
+              A:
+                name: A
+                num_bins: 11
+              B:
+                name: B
+                num_bins: 11
+              C:
+                name: C
+                num_bins: 11
+          09:
+            start_distance: 3.774
+            end_distance: 7.549
+            start_apriltag_id: 10
+            end_apriltag_id: 11
+            tote_drop:
+              x: 19.436
+              y: -1.605
+              yaw_deg: -90.48
+            shelves:
+              A:
+                name: A
+                num_bins: 11
+              B:
+                name: B
+                num_bins: 11
+              C:
+                name: C
+                num_bins: 11

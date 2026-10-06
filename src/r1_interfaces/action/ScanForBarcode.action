@@ -1,0 +1,9 @@
+# Request
+string target_barcode
+float32 timeout
+---
+# Result
+bool success
+---
+# Feedback
+float32 time_left

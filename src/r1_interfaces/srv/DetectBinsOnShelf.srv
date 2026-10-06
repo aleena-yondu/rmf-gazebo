@@ -1,0 +1,40 @@
+# Request: 3D shelf-bay region the camera should scan for bins. The camera
+# uses this to project 2D bin detections into 3D map coordinates and to
+# estimate each detected bin's centerpoint and width on the shelf plane.
+#
+# The shelf line is the bottom-front edge of the LOWEST shelf in the bay,
+# lying on the horizontal plane z = shelf_bottom_z. shelf_yaw_rad is the
+# facing yaw of the shelf normal (pointing into the aisle).
+#
+# The vertical extent [shelf_bottom_z, shelf_top_z] now spans the WHOLE bay
+# (bottom of the lowest shelf to top of the highest shelf), so a single call
+# detects bins across all shelves of the target bay rather than just one.
+# The per-shelf brackets in `shelf_brackets[]` partition that vertical extent
+# into per-shelf [bottom_z, top_z] sub-ranges and carry each shelf's id; the
+# warehouse uses them to attribute returned detections to a specific shelf.
+geometry_msgs/Point shelf_start          # left endpoint of shelf line in map frame
+geometry_msgs/Point shelf_end            # right endpoint of shelf line in map frame
+float32 shelf_bottom_z                   # bottom of LOWEST shelf opening in the bay (m, includes beam)
+float32 shelf_top_z                      # top of HIGHEST shelf opening in the bay (m)
+float32 shelf_yaw_rad                    # facing yaw of shelf normal (rad)
+
+# Per-shelf vertical brackets covering [shelf_bottom_z, shelf_top_z], ordered
+# bottom -> top. The camera does not need to label detections with a shelf id
+# (the warehouse partitions by detection.center.z), but it MUST detect bins
+# across the full bay vertical extent rather than a single shelf.
+r1_interfaces/ShelfBracket[] shelf_brackets
+
+# Apriltag IDs marking the LEFT and RIGHT physical edges of the bay along
+# the shelf line, AS SEEN BY AN OBSERVER FACING shelf_yaw_rad. The conversion
+# from per-bay (start, end) to (left, right) is done warehouse-side using
+# the row's yaw_deg; the camera just trusts the labels and uses them to
+# anchor the bin-detection ROI so detections from neighbouring bays are
+# excluded. Either field may be -1 meaning "no apriltag installed at this
+# edge"; in that case the camera falls back to whatever scoping it would
+# use without the tag.
+int32 left_apriltag_id
+int32 right_apriltag_id
+---
+r1_interfaces/BinDetection[] detections  # bins detected in the widened bay ROI; z identifies shelf
+bool success
+string message

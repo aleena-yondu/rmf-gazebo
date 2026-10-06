@@ -1,0 +1,7 @@
+# Request
+# No parameters needed
+---
+# Response
+bool success       # True if abort and home sequence was initiated
+string message     # Status message
+int32 cleared_tasks  # Number of tasks cleared from queue

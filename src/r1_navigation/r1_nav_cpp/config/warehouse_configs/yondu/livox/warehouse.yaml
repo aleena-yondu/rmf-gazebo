@@ -1,0 +1,124 @@
+warehouse:
+  barcode_pattern: '{side}{row}-{bay:02d}-{shelf}-{bin:02d}'
+  # Width (m) of the metal beam at the bottom-front of every shelf opening.
+  shelf_beam_width: 0.095
+  tote_row_heights:
+    0: 0
+    1: 15
+    2: 80
+    3: 100
+  tote_row_heights_meters:
+    0: 0.27
+    1: 0.74
+    2: 1.0
+    3: 1.18
+  rows:
+    X1:
+      name: X1
+      side: X
+      row_number: 1
+      shelf_heights:        { A: -25,  B: 15,   C: 100  }   # servo 0..100
+      shelf_heights_meters: { A: 0.27, B: 0.85, C: 1.35 }   # m
+      search_height: 10            # servo 0..100, single per row
+      search_standoff: 0.6         # m, single per row
+      # Reuse the legacy `segments` p1/p2 as start/end_point. Each segment
+      # owns exactly one bay covering the entire segment (legacy num_bays=1).
+      segments:
+        - yaw_deg: -94.63
+          start_point: { x: 2.456, y: 0.691 }
+          end_point:   { x: 4.357, y: 0.537 }
+          bays:
+            '01':
+              start_distance: 0.0
+              end_distance:   1.907
+              start_apriltag_id: 1
+              end_apriltag_id:  2      # TODO confirm: placeholder = start + 1
+              tote_drop: { x: 4.931, y: 0.974, yaw_deg: -4.47 }
+              shelves:
+                A: { name: A, num_bins: 6 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 6 }
+        - yaw_deg: -94.63
+          start_point: { x: 4.368, y: 0.526 }
+          end_point:   { x: 6.411, y: 0.384 }
+          bays:
+            '02':
+              start_distance: 0.0
+              end_distance:   2.048
+              start_apriltag_id: 2
+              end_apriltag_id:  3      # TODO confirm: placeholder = start + 1
+              tote_drop: { x: 6.389, y: 0.878, yaw_deg: -4.63 }
+              shelves:
+                A: { name: A, num_bins: 7 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 7 }
+    Y2:
+      name: Y2
+      side: Y
+      row_number: 2
+      shelf_heights:        { A: -25,  B: 15,   C: 100  }   # servo 0..100
+      shelf_heights_meters: { A: 0.27, B: 0.85, C: 1.35 }   # m
+      search_height: 10            # servo 0..100, single per row
+      search_standoff: 0.6         # m, single per row
+      # Reuse the legacy `segments` p1/p2 as start/end_point. Each segment
+      # owns exactly one bay covering the entire segment (legacy num_bays=1).
+      segments:
+        - yaw_deg: 85.37
+          start_point: { x: 2.397, y: -0.567 }
+          end_point:   { x: 6.282, y: -0.876 }
+          bays:
+            '01':
+              start_distance: 0.0
+              end_distance:   1.948
+              start_apriltag_id: 4
+              end_apriltag_id:  5
+              tote_drop: { x: 6.159, y: -1.455, yaw_deg: -4.47 }
+              shelves:
+                A: { name: A, num_bins: 6 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 6 }
+            '02':
+              start_distance: 1.949
+              end_distance:   3.897
+              start_apriltag_id: 6
+              end_apriltag_id: 7
+              tote_drop: { x: 6.159, y: -1.455, yaw_deg: -4.47 }
+              shelves:
+                A: { name: A, num_bins: 6 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 6 }
+    X2:
+      name: X2
+      side: X
+      row_number: 2
+      shelf_heights:        { A: -25,  B: 15,   C: 100  }   # servo 0..100
+      shelf_heights_meters: { A: 0.27, B: 0.85, C: 1.35 }   # m
+      search_height: 10            # servo 0..100, single per row
+      search_standoff: 0.6         # m, single per row
+      # Reuse the legacy `segments` p1/p2 as start/end_point. Each segment
+      # owns exactly one bay covering the entire segment (legacy num_bays=1).
+      segments:
+        - yaw_deg: -94.63
+          start_point: { x: 2.292, y: -1.679 }
+          end_point:   { x: 6.17, y: -2.084 }
+          bays:
+            '01':
+              start_distance: 0.0
+              end_distance:   1.948
+              start_apriltag_id: 8
+              end_apriltag_id:  9
+              tote_drop: { x: 6.159, y: -1.455, yaw_deg: -4.47 }
+              shelves:
+                A: { name: A, num_bins: 6 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 6 }
+            '02':
+              start_distance: 1.949
+              end_distance:   3.897
+              start_apriltag_id: 10
+              end_apriltag_id: 11
+              tote_drop: { x: 6.159, y: -1.455, yaw_deg: -4.47 }
+              shelves:
+                A: { name: A, num_bins: 6 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 6 }

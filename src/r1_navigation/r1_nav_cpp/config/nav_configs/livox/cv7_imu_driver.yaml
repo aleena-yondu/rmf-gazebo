@@ -1,0 +1,278 @@
+# MicroStrain 3DM-CV7-AR driver configuration -- LIVOX pipeline.
+#
+# Every value below is derived from one of three CV7-centric sources:
+#   (1) CV7-AR datasheet
+#         ARW           0.05 deg/sqrt(hr) = 1.45e-5 rad/sqrt(s)
+#         Accel noise   80 ug/sqrt(Hz) = 7.85e-4 (m/s^2)/sqrt(Hz)
+#         Gyro bias instability ~ 6 deg/hr
+#         On-device EKF settling time 2-5 s (Startup -> Init -> Vertical Gyro)
+#   (2) Measured CV7-AR stationary behavior (2026-05-19, gyro NVM bias
+#         capture verified, see agent_context/Cv7_agent_context.md):
+#         angular_velocity 1e-4 .. 5e-4 rad/s peak post-bias-capture
+#         angular_velocity variance ~ 4e-8 rad^2/s^2
+#   (3) Galaxea R1 Pro chassis kinematics from
+#         config/nav_configs/livox/nav2_params.yaml:
+#         vx_max = 1.5 m/s, ax_max = 2.0 m/s^2
+#         max_angular_vel = 1.2 rad/s, max_angular_accel = 1.0 rad/s^2
+#       Plus mechanical interference: LIVOX MID-360 has a ~5 Hz horizontal
+#         scan and ~10 Hz vertical mirror, coupled through the chassis to
+#         the CV7 mount.
+#
+# No value below is inherited from the ZED head IMU + online_imu_bias_
+# estimator topology that previously fed this pipeline -- that topology
+# was retired on 2026-05-19 for the LIVOX EKF (OUSTER still uses it; see
+# r1_nav_cpp/r1_nav_cpp/sensor_pipeline.py gating).
+#
+# Consumed by: launch/cv7_imu_driver.launch.py
+# Driver pkg : ros-humble-microstrain-inertial-driver (v4.8.0)
+#              auto-installed into r1_container by launch_docker.sh.
+#
+# Hardware: 3DM-CV7-AR tactical IMU on the Galaxea R1 Pro chassis floor,
+# co-located with the Forsense FSS-IMU614E (which keeps publishing as
+# /hdas/imu_chassis -- the CV7 is ADDITIVE, not a replacement).
+#
+# Mount: REP-103 / right-handed FLU (X-forward, Y-left, Z-up). URDF link
+# is cv7_imu_link at xyz=(-0.25, 0, 0.27) m, rpy=(-0.0067, -0.0408, 0)
+# rad from base_link (final_robot.urdf).
+#
+# DO NOT use microstrain_inertial_examples/cv7_launch.py with this file.
+# That upstream launch hardcodes the CV7-INS example yml and silently
+# ignores params_file:=. Use our launch wrapper, which goes through
+# microstrain_inertial_driver/microstrain_launch.py instead.
+
+/**:
+  ros__parameters:
+
+    # =========================================================
+    # Connection
+    # =========================================================
+    # The CV7 dev kit enumerates via a USB-CDC bridge through an STM32
+    # on the C-Series Connectivity Board. lsusb reports
+    # `0483:5740 STMicroelectronics Virtual COM Port` -- NOT
+    # "MicroStrain", which trips up anyone grepping for the vendor name.
+    # The kernel exposes it as /dev/ttyACM0 with root:dialout ownership.
+    port: "/dev/ttyACM0"
+    baudrate: 115200
+
+    # =========================================================
+    # Output rate
+    # =========================================================
+    # 200 Hz, derived from pointcloud_deskew rear-edge artifact math:
+    #   The deskew node uses the most recent IMU sample as the wz estimate
+    #   for any point past the back of the IMU buffer. The stale-wz gap is
+    #     dt_stale = 1 / imu_data_rate
+    #   At 100 Hz that gap is 10 ms; at 200 Hz it is 5 ms.
+    #   At a typical chassis angular rate of 1 rad/s, a 10 ms gap injects
+    #     1 rad/s * 0.010 s = 0.010 rad = 0.57 deg of azimuth smear at the
+    #     scan rear edge during angular accel/decel transients. At 200 Hz
+    #     the same smear is 0.29 deg, well below the LIVOX angular
+    #     resolution (~0.4 deg).
+    # CV7 datasheet supports up to 1 kHz here. If the rear-edge artifact
+    # survives at 200 Hz, the next step is 500 Hz, NOT 1 kHz (USB-CDC
+    # bandwidth headroom gets thin once the filter/status messages riding
+    # the same bus are counted).
+    imu_data_rate: 200
+
+    # =========================================================
+    # Frames (REP-103 / ENU)
+    # =========================================================
+    # use_enu_frame=True asks the driver to flip the device's native NED
+    # measurements into ENU before publishing -- required for any ROS
+    # consumer that follows REP-103 (nav2, robot_localization, slam_toolbox).
+    use_enu_frame: True
+
+    # frame_id is stamped onto every published IMU message. The URDF
+    # owns base_link -> cv7_imu_link via a fixed joint at the measured
+    # mount offset; consumers subscribe via TF, not the literal frame
+    # string.
+    frame_id: "cv7_imu_link"
+    mount_frame_id: "base_link"
+
+    # The URDF owns base_link -> cv7_imu_link via a fixed joint, so the
+    # driver MUST NOT republish that transform -- otherwise the TF tree
+    # ends up with two publishers for the same edge and the late one
+    # wins non-deterministically.
+    publish_mount_to_frame_id_transform: False
+
+    # =========================================================
+    # Outputs
+    # =========================================================
+    publish_imu: True       # /imu/data{,_raw} -- gyro + accel + orientation
+    publish_filter: True    # /ekf/status etc. -- on-device EKF state
+
+    # =========================================================
+    # Published measurement covariances (3x3 row-major matrices)
+    # =========================================================
+    # Each `imu_*_cov` is a 9-element row-major matrix that the driver
+    # stamps verbatim into the corresponding sensor_msgs/Imu field. The
+    # driver default for all three is diag(0.01); we override every one
+    # from the CV7-AR datasheet + measured behavior so downstream
+    # consumers see a real characterization, not the upstream "any IMU
+    # MicroStrain ships" placeholder.
+
+    # ----- imu_orientation_cov (rad^2) -----
+    # CV7-AR has no absolute heading source (no magnetometer, no GNSS,
+    # no external heading aiding -- all explicitly disabled below). The
+    # `orientation` quaternion comes from the on-device EKF in the
+    # Vertical Gyro filter state: gravity-corrected roll/pitch, pure-
+    # gyro-integrated yaw.
+    #
+    # With imu0_relative=true in livox/ekf.yaml the EKF consumes
+    # relative-yaw deltas per cycle, not absolute heading, so the right
+    # R here is the per-cycle integration noise:
+    #   per IMU sample dt = 1 / 200 Hz = 5 ms
+    #     sigma_q = ARW * sqrt(dt) = 1.45e-5 * 0.0707 ~ 1e-6 rad
+    #     variance ~ 1e-12
+    #   per EKF cycle dt = 1 / 30 Hz = 33 ms
+    #     sigma_q = ARW * sqrt(dt) = 1.45e-5 * 0.182 ~ 2.6e-6 rad
+    #     variance ~ 7e-12
+    # Chosen 1.0e-6 rad^2 (sigma ~ 1 mrad = 0.057 deg) sits ~1e5x above
+    # the per-cycle white-noise floor -- headroom for the 2-5 s on-device
+    # EKF settling window where orientation can drift a few mrad before
+    # Vertical Gyro state latches, and for bias-instability spikes
+    # between NVM bias captures.
+    #
+    # The driver default diag(0.01) corresponds to sigma ~ 5.7 deg per
+    # sample; at that R the EKF effectively ignores the CV7's relative-
+    # yaw observation in favor of pure vyaw integration -- which defeats
+    # the entire reason we feed yaw at idx 5 in livox/ekf.yaml.
+    imu_orientation_cov: [1.0e-6, 0.0,    0.0,
+                          0.0,    1.0e-6, 0.0,
+                          0.0,    0.0,    1.0e-6]
+
+    # ----- imu_angular_cov (rad^2/s^2) -----
+    # Datasheet ARW       0.05 deg/sqrt(hr) = 1.45e-5 rad/sqrt(s)
+    # At BW = Nyquist / 2 of imu_data_rate=200 Hz (driver auto LPF
+    # default, before we override below):
+    #   sigma_omega   = ARW * sqrt(100) = 1.45e-4 rad/s
+    #   variance      ~ 2.1e-8 rad^2/s^2
+    # Measured stationary post-NVM-bias-capture:
+    #   peak 1e-4 .. 5e-4 rad/s on all 3 axes
+    #   variance ~ 4e-8 rad^2/s^2 (consistent with spec ARW above)
+    # Chosen 1.0e-6 rad^2/s^2 sits ~25-50x above the white-noise variance.
+    # That headroom is reserved for chassis vibration coupling through
+    # the chassis-floor mount AND for gyro bias instability random walk
+    # between bias captures, neither of which we have a bench-
+    # characterized number for on this chassis yet.
+    #
+    # If we ever need to RELAX this (e.g. visible high-frequency twitch
+    # on EKF vyaw under hard motor commands), prefer raising in 2-3x
+    # steps with a wall-test re-run rather than reverting to the driver
+    # default diag(0.01), which is ~5 orders of magnitude too loose for
+    # the CV7-AR specifically.
+    imu_angular_cov: [1.0e-6, 0.0,    0.0,
+                      0.0,    1.0e-6, 0.0,
+                      0.0,    0.0,    1.0e-6]
+
+    # ----- imu_linear_cov ((m/s^2)^2) -----
+    # Accel is NOT fused in livox/ekf.yaml (idx 12-14 off, and two_d_mode
+    # zeros them anyway; plus the 25 cm lever arm injects centripetal
+    # accel during in-place rotation that robot_localization cannot
+    # subtract -- see the long comment block in livox/ekf.yaml). So
+    # this field is informational for any future consumer.
+    #
+    # Datasheet noise density 80 ug/sqrt(Hz) = 7.85e-4 (m/s^2)/sqrt(Hz).
+    # At BW = 100 Hz (Nyquist/2 of 200 Hz):
+    #   sigma_a   = 7.85e-4 * sqrt(100) = 7.85e-3 m/s^2
+    #   variance  ~ 6e-5 (m/s^2)^2
+    # Chosen 1.0e-4 m^2/s^4 ~ 1.6x the spec variance; conservative
+    # headroom for chassis-floor vibration coupling. Override-on-purpose
+    # so the file reads as a complete CV7-AR characterization rather
+    # than relying on the driver default diag(0.01).
+    imu_linear_cov: [1.0e-4, 0.0,    0.0,
+                     0.0,    1.0e-4, 0.0,
+                     0.0,    0.0,    1.0e-4]
+
+    # =========================================================
+    # On-device low-pass filters (gyro + accel)
+    # =========================================================
+    # Default driver behavior auto-tunes the cutoff to Nyquist / 2 of
+    # the configured data rate, i.e. ~100 Hz at imu_data_rate=200. That
+    # is far above the real chassis motion bandwidth AND through the
+    # LIVOX mechanical vibration band:
+    #
+    # Real chassis motion BW:
+    #   max_angular_accel = 1.0 rad/s^2 -> a 1 rad/s step is reached over
+    #     ~1 s, so the useful gyro signal is concentrated below 5 Hz.
+    #   max_lin_accel ax_max = 2.0 m/s^2 -> similar low-frequency
+    #     content for the accel.
+    # LIVOX MID-360 mechanical:
+    #   ~5 Hz horizontal scan fundamental
+    #   ~10 Hz vertical mirror fundamental
+    #   harmonics and chassis-floor coupling extend through 50+ Hz
+    # Above 30 Hz the IMU reading is dominated by vibration, not motion.
+    #
+    # Setting both gyro and accel LPF cutoffs to 30 Hz gives:
+    #   6x headroom over the real motion BW (5 Hz)
+    #   3x headroom over the LIVOX 10 Hz fundamental
+    #   clean rejection of 50 Hz+ vibration harmonics
+    #   phase lag at 5 Hz ~ 5 deg (irrelevant for this consumer)
+    #
+    # NOTE: the 30 Hz cutoff also means the imu_angular_cov derivation
+    # above is conservative -- with the LPF in place the actual per-
+    # sample BW is 30 Hz, not 100 Hz, so the spec-derived variance
+    # is ~ARW^2 * 30 = 6.3e-9 rad^2/s^2 (vs 2.1e-8 at BW=100). The 1e-6
+    # floor we set already absorbs that.
+    low_pass_filter_config: True
+
+    gyro_low_pass_filter_enable: True
+    gyro_low_pass_filter_auto: False
+    gyro_low_pass_filter_frequency: 30
+
+    accel_low_pass_filter_enable: True
+    accel_low_pass_filter_auto: False
+    accel_low_pass_filter_frequency: 30
+
+    # Magnetometer and pressure: CV7-AR has neither aiding source live,
+    # and we don't publish /imu/mag or /imu/pressure. Leave their LPF
+    # entries at driver default (disabled / 0 Hz) implicitly.
+
+    # =========================================================
+    # CV7-AR-specific on-device EKF aiding sources (ALL OFF)
+    # =========================================================
+    # The driver stock config is shaped for the CV7-INS (with
+    # magnetometer + GNSS). The AR variant has neither, so every aiding
+    # source below MUST be disabled or the on-device EKF will either
+    # refuse to start or wedge in a permanent fault state. Smoke-tested
+    # 2026-05-18 -- /imu/data published cleanly using exactly this
+    # aiding posture.
+    #
+    # filter_heading_source: 0 is documented as MANDATORY for CV7-AR in
+    # agent_context/Cv7_agent_context.md section 3. In practice the
+    # CV7-AR firmware does not even accept the heading-source MIP command
+    # (the driver logs "Note: The device does not support the heading
+    # source command." at startup), so the value here is effectively
+    # ignored at device level. We still set it explicitly as
+    # documentation-of-intent and as a guard against this file being
+    # copied to a sibling variant that DOES support the command.
+    filter_heading_source: 0
+
+    # Auto-alignment selector 0 = no automatic heading alignment, which
+    # is the only valid option without a magnetometer or GNSS. The
+    # upstream example cv7.yml ships with 4 (magnetometer alignment) --
+    # if that leaks in via a missing override, the AR-variant driver
+    # exits during configure().
+    filter_auto_heading_alignment_selector: 0
+
+    # Wheeled-vehicle / vertical-gyro / mag / GNSS / external-heading
+    # aiding all OFF. The CV7-AR will log "Note: The device does not
+    # support ..." for most of these (visible in the startup log), but
+    # we set them explicitly so the file reads as a complete declaration
+    # of the AR-pipeline aiding posture -- nobody reading this should
+    # have to cross-reference the driver source to know "why isn't
+    # magnetometer fusion happening here".
+    filter_enable_wheeled_vehicle_constraint: False
+    filter_enable_vertical_gyro_constraint: False
+    filter_enable_magnetometer_aiding: False
+    filter_enable_gnss_pos_vel_aiding: False
+    filter_enable_gnss_heading_aiding: False
+    filter_enable_external_heading_aiding: False
+
+    # PPS source 0 = disabled. We have no PPS pin wired to the CV7 dev
+    # board; the timestamps come from CDC-ACM USB framing.
+    filter_pps_source: 0
+
+    # Declination source 1 = "none" (no magnetic declination correction
+    # applied). Moot for CV7-AR (no magnetometer), kept set explicitly
+    # to suppress the config-load warning that fires if it is unset.
+    filter_declination_source: 1

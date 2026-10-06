@@ -1,0 +1,11 @@
+# Request - Create or start setup for a cart
+string cart_barcode    # Cart barcode/QR code
+string cart_name       # Optional display name (defaults to barcode)
+int32 rows             # Number of tote rows (default 4)
+int32 cols             # Number of tote columns (default 3)
+---
+# Response
+bool success
+string message
+string cart_barcode    # Echo back the cart barcode
+int32 total_slots      # Total available slots (rows * cols)

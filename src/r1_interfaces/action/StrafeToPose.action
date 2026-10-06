@@ -1,0 +1,15 @@
+# Goal
+geometry_msgs/PoseStamped target_pose   # map-frame goal on the scan line; orientation = facing yaw
+float32 speed                           # along-track speed magnitude (m/s); <=0 uses the server default
+float32 xy_tolerance                    # position tolerance to declare success (m); <=0 uses the server default
+float32 yaw_tolerance                   # yaw tolerance to declare success (rad); <=0 uses the server default
+builtin_interfaces/Duration time_allowance
+---
+# Result
+# NOTE: total_elapsed_time is required by nav2_behaviors::TimedBehavior, which
+# assigns result->total_elapsed_time when the behavior terminates.
+builtin_interfaces/Duration total_elapsed_time
+---
+# Feedback
+float32 distance_remaining              # along-track distance to target (m)
+float32 cross_track_error               # perpendicular drift off the line (m)

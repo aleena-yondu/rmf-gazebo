@@ -1,0 +1,47 @@
+/**:
+    ros__parameters:
+        feature_extract_enable: false
+        point_filter_num: 3             # downsample: keep 1 out of every N points
+        max_iteration: 3
+        filter_size_surf: 0.5
+        filter_size_map: 0.5
+        cube_side_length: 1000.0
+        runtime_pos_log_enable: false
+        map_file_path: "./fast_lio_map.pcd"
+
+        common:
+            lid_topic:  "/ouster/points_fastlio"  # ring-fixed topic from pointcloud_ring_fixer
+            imu_topic:  "/ouster/imu_reliable"   # QoS-bridged topic from imu_qos_relay
+            time_sync_en: false
+            time_offset_lidar_to_imu: 0.0
+
+        preprocess:
+            lidar_type: 3               # 1: Livox, 2: Velodyne, 3: Ouster
+            scan_line: 64               # OS1-64: 64, OS1-128: 128
+            timestamp_unit: 3           # 0: second, 1: ms, 2: us, 3: ns — Ouster uses nanoseconds
+            blind: 0.5                  # ignore points closer than 0.5m (warehouse safe)
+
+        mapping:
+            acc_cov: 0.1
+            gyr_cov: 0.1
+            b_acc_cov: 0.0001
+            b_gyr_cov: 0.0001
+            fov_degree: 360.0           # Ouster is 360° spinning
+            det_range: 60.0             # conservative for warehouse
+            extrinsic_est_en: false     # extrinsic known, do not estimate online
+            # Ouster mount: 0.2m forward, -0.2m right, 0.2m up from base_link
+            # Matches ouster_static_tf: [0.2, -0.2, 0.2, 0, 0, 0, base_link, os_sensor]
+            extrinsic_T: [ -0.1491, 0.2300, 0.3359 ]
+            extrinsic_R: [ 0.998728, 0.050377, -0.002248,
+                           -0.050358, 0.998701, 0.007828,
+                           0.002639, -0.007705, 0.999967]
+
+        publish:
+            path_en: true
+            scan_publish_en: true
+            dense_publish_en: false     # save bandwidth/CPU
+            scan_bodyframe_pub_en: true
+
+        pcd_save:
+            pcd_save_en: false          # not saving map in localization mode
+            interval: -1

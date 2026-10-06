@@ -1,0 +1,87 @@
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # Cap Ceres pose-graph optimizer threads (matches the LIVOX mapping YAML).
+    # Stock slam_toolbox hardcodes this at 50 (Ceres clamps to hardware cores),
+    # which starves the sensor container during optimization. Reading this key
+    # requires our local patch to solvers/ceres_solver.cpp; stock builds ignore
+    # it. Kept at 8 for parity with LIVOX; drop toward 4 if the OUSTER sensor
+    # container reports IMU/scan back-clamp warnings during large-tour mapping.
+    ceres_num_threads: 8
+
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: mapping
+    use_map_saver: true
+
+    # map_file_name: set by launch file
+    map_start_pose: [0.0, 0.0, 0.0]
+
+    debug_logging: false
+    throttle_scans: 1
+    # OUSTER native ~30 Hz
+    transform_publish_period: 0.0333
+    # Fresher map than lifelong (was 15.0) for interactive mapping, but slow enough
+    # that raster regen cost stays bounded as the map grows
+    map_update_interval: 2.0
+    resolution: 0.05
+
+    min_laser_range: 0.35
+    max_laser_range: 10.0
+
+    minimum_time_interval: 0.0333
+    minimum_travel_distance: 0.3
+    minimum_travel_heading: 0.1
+
+    transform_timeout: 0.3
+    tf_buffer_duration: 10.0
+    stack_size_to_use: 40000000
+    scan_queue_size: 10
+
+    use_scan_matching: true
+    use_scan_barycenter: true
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 5.0
+
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 3
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.8
+    loop_match_minimum_response_fine: 0.1
+
+    # OUSTER-tuned matcher block: must keep correlation_search_space_resolution >=
+    # map resolution; finer values cause the probability grid to crash on this sensor
+    correlation_search_space_dimension: 0.8
+    correlation_search_space_resolution: 0.05
+    correlation_search_space_smear_deviation: 0.03
+
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+    loop_search_maximum_distance: 20.0
+
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.1
+    coarse_angle_resolution: 0.0175
+    minimum_angle_penalty: 0.8
+    minimum_distance_penalty: 0.8
+    use_response_expansion: true
+    min_pass_through: 2
+    occupancy_threshold: 0.1
+
+    # Restamp slam_toolbox map->odom TF to current ts; scan-matching delay
+    # otherwise leaves the TF timestamp behind real-time
+    restamp_tf: true

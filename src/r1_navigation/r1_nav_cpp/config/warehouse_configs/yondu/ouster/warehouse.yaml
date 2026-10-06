@@ -1,0 +1,54 @@
+warehouse:
+  barcode_pattern: '{side}{row}-{bay:02d}-{shelf}-{bin:02d}'
+  # Width (m) of the metal beam at the bottom-front of every shelf opening.
+  shelf_beam_width: 0.095
+  tote_row_heights:
+    0: 0
+    1: 15
+    2: 80
+    3: 100
+  tote_row_heights_meters:
+    0: 0.27
+    1: 0.74
+    2: 1.0
+    3: 1.18
+  rows:
+    X1:
+      name: X1
+      side: X
+      row_number: 1
+      shelf_heights:        { A: -15,  B: 15,   C: 100  }   # servo 0..100
+      shelf_heights_meters: { A: 0.117, B: 0.565, C: 1.022 }   # m
+      search_height: 10            # servo 0..100, single per row
+      search_standoff: 1.0         # m, single per row
+      # No `segments` block existed in the legacy YAML; one synthesized
+      # segment per bay derived from shelf B (largest bin count) per the plan.
+      segments:
+        - yaw_deg: -89.37
+          start_point: { x: 1.986, y: -0.851 }
+          end_point:   { x: 3.860, y: -0.830 }
+          bays:
+            '01':
+              start_distance: 0.0
+              end_distance:   1.874
+              start_apriltag_id: 35    # bay-edge apriltag at the shelf line's start point
+              end_apriltag_id:   99    # bay-edge apriltag at the shelf line's end point
+              tote_drop: { x: 4.5, y: -0.01, yaw_deg: 0.63 }
+              shelves:
+                A: { name: A, num_bins: 6 }
+                B: { name: B, num_bins: 7 }
+                C: { name: C, num_bins: 6 }
+        - yaw_deg: -89.37
+          start_point: { x: 3.868, y: -0.829 }
+          end_point:   { x: 5.775, y: -0.808 }
+          bays:
+            '02':
+              start_distance: 0.0
+              end_distance:   1.908
+              start_apriltag_id: 99
+              end_apriltag_id:   100
+              tote_drop: { x: 4.5, y: -0.01, yaw_deg: 0.63 }
+              shelves:
+                A: { name: A, num_bins: 7 }
+                B: { name: B, num_bins: 6 }
+                C: { name: C, num_bins: 7 }

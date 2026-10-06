@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+
+  <BehaviorTree ID="MainTree">
+
+    <Sequence name="MainSequence">
+      <!-- Blackboard variables -->
+      <!-- active_order: bool (set by UpdateOrderState) -->
+      <!-- current target: string 'BIN', 'TOTE', 'NONE' (set by BT) -->
+
+      <!-- Update order variables -->
+      <UpdateOrderState/>
+
+      <!-- Cancel any active highlight from the previous tick -->
+      <ForceSuccess>
+        <Fallback name="HighlightFallback">
+          <BlackboardCheckString value_A="{current_target}" value_B="NONE" return_on_mismatch="FAILURE">
+            <HighlightTarget target_type="NONE"/>
+          </BlackboardCheckString>
+          <BlackboardCheckString value_A="{current_target}" value_B="BIN" return_on_mismatch="FAILURE">
+            <HighlightTarget target_type="NONE"/>
+          </BlackboardCheckString>
+          <BlackboardCheckString value_A="{current_target}" value_B="TOTE" return_on_mismatch="FAILURE">
+            <HighlightTarget target_type="NONE"/>
+          </BlackboardCheckString>
+        </Fallback>
+      </ForceSuccess>
+
+      <!-- Fallback to verify nav should be executed -->
+      <Fallback name="NavFallback">
+
+        <!-- Check if we should NOT navigate -->
+        <SubTree ID="ShouldNotNavigate" __autoremap="true"/>
+
+        <!-- ===== Decide which order to do: BIN or TOTE ===== -->
+        <Fallback name="OrderTypeFallback">
+
+          <!-- ===== BIN order sequence with image-based scanning ===== -->
+          <Sequence name="BinSequence">
+
+            <BlackboardCheckString value_A="{current_target}" value_B="BIN" return_on_mismatch="FAILURE">
+              <Wait wait_duration="0.1"/>
+            </BlackboardCheckString>
+
+            <!-- Get BIN target (sets scan_pose, best_estimate_pose, target_detected, etc.) -->
+            <SubTree ID="UpdateTargets" __autoremap="true" target="{current_target}"/>
+
+            <!-- BackUp first -->
+            <ForceSuccess>
+              <BackUp backup_dist="0.2" backup_speed="0.15" time_allowance="20.0" server_timeout="10.0"/>
+            </ForceSuccess>
+
+            <!-- Mark next target as TOTE early so the TOTE sequence can begin on the next tick -->
+            <SetBlackboardString output_key="current_target" value="TOTE"/>
+
+            <!-- Branch: confidence high enough vs low (camera search needed) -->
+            <Fallback name="BinNavigationFallback">
+
+              <!-- Path 1: Detected - navigate directly to best_estimate + servo in parallel -->
+              <BlackboardCheckBool value_A="{target_detected}" value_B="true" return_on_mismatch="FAILURE">
+                <Parallel success_threshold="2" failure_threshold="1" name="DirectNavAndServo">
+                  <Sequence name="NavigateToBin">
+                    <DebugPrint debug_message="BIN Sequence: Detected, navigating directly to best_estimate_pose" print_pose="{best_estimate_pose}"/>
+                    <SubTree ID="NavigateWithToleranceAdjustment" __autoremap="true" goal_pose="{best_estimate_pose}"/>
+                  </Sequence>
+                  <ServoToTarget target_type="BIN"/>
+                </Parallel>
+              </BlackboardCheckBool>
+
+              <!-- Path 2: Low confidence - drive to a search standoff, servo to the
+                   search height, and run the camera-driven bin search loop in
+                   parallel. The SearchBins node fuses camera detections into the
+                   warehouse cache (PDA-lite) and exits early once the target's
+                   joint pos+width confidence reaches min_confidence (or after
+                   the 20s wall-time budget runs out). After the parallel
+                   completes, refresh the BIN target with the now-updated
+                   belief and proceed with the regular pick approach. -->
+              <Sequence name="CameraSearchThenNavigate">
+                <DebugPrint debug_message="BIN Sequence: Low confidence, fetching BIN_SEARCH chassis target"/>
+                <!-- NOTE: GetChassisTarget is called directly here (not via the
+                     UpdateTargets subtree) because BehaviorTree.CPP v3's
+                     SubTree + __autoremap=true does not reliably forward
+                     literal-string port values; the literal "BIN_SEARCH" gets
+                     overridden by the parent's blackboard auto-remap. Calling
+                     the leaf directly bypasses that quirk. Same fields as the
+                     UpdateTargets subtree so blackboard outputs are unchanged. -->
+                <GetChassisTarget
+                    target_type="BIN_SEARCH"
+                    target_detected="{target_detected}"
+                    target_confidence="{target_confidence}"
+                    best_estimate_pose="{best_estimate_pose}"
+                    scan_pose="{scan_pose}"
+                    target_barcode="{target_barcode}"/>
+
+                <Parallel success_threshold="2" failure_threshold="1" name="NavServoSearch">
+                  <Sequence name="NavigateToSearchPose">
+                    <DebugPrint debug_message="BIN Sequence: Navigating to search standoff pose" print_pose="{best_estimate_pose}"/>
+                    <SubTree ID="NavigateWithToleranceAdjustment" __autoremap="true" goal_pose="{best_estimate_pose}"/>
+                  </Sequence>
+                  <ServoToTarget target_type="BIN_SEARCH"/>
+                </Parallel>
+
+                <ForceSuccess>
+                  <SearchBins timeout="20.0" min_confidence="0.99"/>
+                </ForceSuccess>
+
+                <DebugPrint debug_message="BIN Sequence: Camera search complete, refreshing BIN target"/>
+                <!-- Same direct-call pattern for the post-search BIN refresh. -->
+                <GetChassisTarget
+                    target_type="BIN"
+                    target_detected="{target_detected}"
+                    target_confidence="{target_confidence}"
+                    best_estimate_pose="{best_estimate_pose}"
+                    scan_pose="{scan_pose}"
+                    target_barcode="{target_barcode}"/>
+
+                <DebugPrint debug_message="BIN Sequence: Servoing to BIN height"/>
+                <ServoToTarget target_type="BIN"/>
+
+                <DebugPrint debug_message="BIN Sequence: Navigating to best_estimate_pose" print_pose="{best_estimate_pose}"/>
+                <SubTree ID="NavigateWithToleranceAdjustment" __autoremap="true" goal_pose="{best_estimate_pose}"/>
+              </Sequence>
+
+            </Fallback>
+
+            <!-- Highlight the bin (and dim its neighbors) on the camera display -->
+            <DebugPrint debug_message="BIN Sequence: Highlighting bin"/>
+            <ForceSuccess>
+              <HighlightTarget target_type="BIN"/>
+            </ForceSuccess>
+
+          </Sequence>
+
+          <BlackboardCheckString value_A="{current_target}" value_B="TOTE" return_on_mismatch="FAILURE">
+
+            <!-- ===== TOTE order sequence (same as direct_nav_no_center) ===== -->
+            <Sequence name="ToteSequence">
+
+              <!-- Get TOTE target -->
+              <SubTree ID="UpdateTargets" __autoremap="true" target="{current_target}"/>
+              <DebugPrint debug_message="TOTE Sequence: Backing up and spinning before navigating" print_pose="{best_estimate_pose}"/>
+
+              <!-- Backup, Navigate to TOTE, AND servo arms/torso in parallel -->
+              <Parallel success_threshold="2" failure_threshold="1" name="SpinAndServoTote">
+
+                <Sequence name="BackupSpinAndNavigate">
+                  <ForceSuccess>
+                    <BackUp backup_dist="0.2" backup_speed="0.15" time_allowance="20.0" server_timeout="10.0"/>
+                  </ForceSuccess>
+                  <DebugPrint debug_message="TOTE Sequence: Navigating to best_estimate_pose" print_pose="{best_estimate_pose}"/>
+                  <SubTree ID="NavigateWithToleranceAdjustment" __autoremap="true" goal_pose="{best_estimate_pose}"/>
+                </Sequence>
+
+                <ServoToTarget target_type="{current_target}"/>
+
+              </Parallel>
+
+              <!-- Mark current target as NONE -->
+              <SetBlackboardString output_key="current_target" value="NONE"/>
+
+            </Sequence>
+          </BlackboardCheckString>
+        <!-- End of bin vs tote fallback-->
+        </Fallback>
+
+      <!-- End of order fallback -->
+      </Fallback>
+    
+    <!-- End of Main Sequence -->
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- ======= SUBTREE DEFINITIONS ======== -->
+  
+  <!-- Subtree that navigates to a goal pose with and tries to recover failures by increasing tolerance
+  Inputs: goal_pose: PoseStamped
+  Outputs: path: nav_msgs/Path 
+  Executes navigation along outputted path -->
+  <BehaviorTree ID="NavigateWithToleranceAdjustment">
+
+    <Sequence name="SetToleranceAndNavigate">
+    
+      <!-- Set initial tolerances -->
+      <SetTolerance planner_set="0.05" xy_set="0.15" yaw_set="0.1"/>
+
+      <!-- Navigate with recoveries -->
+      <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+
+        <PipelineSequence name="NavigateWithReplanning">
+
+          <PublishPose pose="{goal_pose}"/>
+          
+          <RateController hz="1.0">
+            <RecoveryNode number_of_retries="1" name="ComputePathToPoseRecovery">
+              <ComputePathToPose goal="{goal_pose}" path="{path}" planner_id="GridBased"/>
+              <ReactiveFallback name="ComputePathToPoseRecoveryFallback">
+                <GoalUpdated/>
+                <ClearEntireCostmap name="ClearGlobalCostmap-Context"
+                                    service_name="global_costmap/clear_entirely_global_costmap"/>
+              </ReactiveFallback>
+            </RecoveryNode>
+          </RateController>
+
+          <RecoveryNode number_of_retries="1" name="FollowPathRecovery">
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+            <ReactiveFallback name="FollowPathRecoveryFallback">
+              <GoalUpdated/>
+              <ClearEntireCostmap name="ClearLocalCostmap-Context"
+                                  service_name="local_costmap/clear_entirely_local_costmap"/>
+            </ReactiveFallback>
+          </RecoveryNode>
+
+        </PipelineSequence>
+
+        <ReactiveFallback name="RecoveryFallback">
+          <GoalUpdated/>
+          <SetTolerance planner_step="0.1"/>
+        </ReactiveFallback>
+
+      </RecoveryNode>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- Subtree to get/update target poses
+  Inputs: target: string ("BIN", "TOTE", "CENTER")
+  Outputs: target_detected: bool, target_confidence: double, best_estimate_pose: PoseStamped,
+  scan_pose: PoseStamped, target_barcode: string -->
+  <BehaviorTree ID="UpdateTargets">
+    <GetChassisTarget
+        target_type="{target}"
+        target_detected="{target_detected}"
+        target_confidence="{target_confidence}"
+        best_estimate_pose="{best_estimate_pose}"
+        scan_pose="{scan_pose}"
+        target_barcode="{target_barcode}"/>
+  </BehaviorTree>
+
+  <!-- Subtree that returns failure if there is an order and bin/tote to 
+  nav to for the initial fallback -->
+  <BehaviorTree ID="ShouldNotNavigate">
+    <Fallback name="CheckBlackboardValues">
+      <BlackboardCheckBool
+          value_A="{active_order}"
+          value_B="false"
+          return_on_mismatch="FAILURE">
+        <!-- Child that always succeeds if we pass the check -->
+        <Wait wait_duration="0.1"/>
+      </BlackboardCheckBool>
+
+      <BlackboardCheckString
+          value_A="{current_target}"
+          value_B="NONE"
+          return_on_mismatch="FAILURE">
+        <Wait wait_duration="0.1"/>
+      </BlackboardCheckString>
+    </Fallback>
+  </BehaviorTree>
+
+  <!-- TreeNodesModel is only for Groot / documentation -->
+  <TreeNodesModel>
+
+    <Action ID="HighlightTarget" help="Calls GetRawBinPosition service then /highlight_target action to highlight the target bin/tote">
+      <input_port name="target_type" type="std::string">"BIN" or "TOTE"</input_port>
+      <output_port name="message" type="std::string">Status/feedback message</output_port>
+    </Action>
+
+    <Action ID="RunInference" help="Calls the /run_inference action server to execute policy inference">
+      <input_port name="steps" type="int64_t" default="50">Number of inference timesteps to execute</input_port>
+      <input_port name="sleep" type="int64_t" default="20">Milliseconds to sleep between timesteps</input_port>
+      <input_port name="action_type" type="std::string" default="pick">"pick" or "place" action</input_port>
+      <output_port name="message" type="std::string">Status/feedback message from inference</output_port>
+    </Action>
+
+    <Action ID="ServoToTarget" help="Calls the /servo_to_target action server">
+      <input_port name="target_type" type="std::string">"BIN" or "TOTE"</input_port>
+      <input_port name="server_name" default="/servo_to_target"/>
+      <input_port name="server_timeout" type="double" default="10.0"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="SolveIk" help="Calls /solve_ik with IK poses for the current order's shelf from config">
+      <input_port name="server_timeout" type="double" default="30.0">Timeout waiting for action server (s)</input_port>
+    </Action>
+
+    <Action ID="SearchBins" help="Polls the camera node's detect_bins_on_shelf service, forwards detections to record_bin_detections (PDA-lite fusion), and returns SUCCESS once the target bin's confidence reaches min_confidence or the timeout elapses.">
+      <input_port name="timeout" type="double" default="20.0">Wall-time budget for the search loop (s)</input_port>
+      <input_port name="min_confidence" type="double" default="0.99">Joint pos+width confidence gate to short-circuit the loop</input_port>
+      <input_port name="shelf_key" type="std::string" default="">Optional shelf_key (empty = derive from current /teleop/order)</input_port>
+    </Action>
+
+    <Action ID="GetChassisTarget" help="Calls get_chassis_target service for target poses and confidence.">
+      <!-- Inputs -->
+      <input_port name="target_type" type="std::string">
+        "BIN", "TOTE", or "CENTER"
+      </input_port>
+
+      <!-- Outputs -->
+      <output_port name="target_detected" type="bool">
+        True if barcode was detected and cached for this location.
+      </output_port>
+      <output_port name="target_confidence" type="double">
+        Detection confidence (0.0-1.0) for this location.
+      </output_port>
+      <output_port name="best_estimate_pose" type="geometry_msgs::msg::PoseStamped">
+        Best pose (refined if detected, YAML otherwise).
+      </output_port>
+      <output_port name="target_barcode" type="std::string">
+        Expected barcode for target location (BIN only).
+      </output_port>
+      <output_port name="scan_pose" type="geometry_msgs::msg::PoseStamped">
+        Pose for barcode scanning (extra standoff + rightward offset, BIN only).
+      </output_port>
+
+      <!-- For Groot only; not actually used at runtime by the node -->
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="UpdateOrderState" help="Reads /teleop/order and sets active_order, is_bin_target, should_do_bin, should_do_tote">
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="PublishPose">
+      <input_port name="pose" type="geometry_msgs::msg::PoseStamped"/>
+    </Action>
+
+    <Action ID="SetTolerance" help="Sets/increments tolerances on planner_server and controller_server">
+      <input_port name="planner_set" type="double">Set GridBased.tolerance to this value</input_port>
+      <input_port name="planner_step" type="double">Increment GridBased.tolerance by this value</input_port>
+      <input_port name="xy_set" type="double">Set goal_checker.xy_goal_tolerance to this value</input_port>
+      <input_port name="xy_step" type="double">Increment goal_checker.xy_goal_tolerance by this value</input_port>
+      <input_port name="yaw_set" type="double">Set goal_checker.yaw_goal_tolerance to this value</input_port>
+      <input_port name="yaw_step" type="double">Increment goal_checker.yaw_goal_tolerance by this value</input_port>
+    </Action>
+
+    <Action ID="ComputeSpinAngle" help="Computes yaw rotation to face a target position">
+      <input_port name="target_pose" type="geometry_msgs::msg::PoseStamped">Target pose to face</input_port>
+      <output_port name="spin_angle" type="double">Computed spin angle in radians [-pi, pi]</output_port>
+    </Action>
+
+    <Action ID="ComputePathToPose">
+      <input_port name="goal" type="geometry_msgs::msg::PoseStamped"/>
+      <output_port name="path" type="nav_msgs::msg::Path"/>
+      <input_port name="planner_id" type="std::string"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="FollowPath">
+      <input_port name="path" type="nav_msgs::msg::Path"/>
+      <input_port name="controller_id" type="std::string"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="ClearEntireCostmap">
+      <input_port name="service_name" type="std::string"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="Spin">
+      <input_port name="spin_dist" type="double"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="BackUp">
+      <input_port name="backup_dist" type="double"/>
+      <input_port name="backup_speed" type="double"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="Wait">
+      <input_port name="wait_duration" type="double"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Condition ID="GoalUpdated"/>
+
+    <Decorator ID="RateController">
+      <input_port name="hz" type="double"/>
+    </Decorator>
+
+    <Decorator ID="BlackboardCheckBool">
+      <input_port name="value_A" type="bool"/>
+      <input_port name="value_B" type="bool"/>
+      <input_port name="return_on_mismatch" type="BT::NodeStatus"/>
+    </Decorator>
+
+    <Decorator ID="BlackboardCheckString">
+      <input_port name="value_A" type="std::string"/>
+      <input_port name="value_B" type="std::string"/>
+      <input_port name="return_on_mismatch" type="BT::NodeStatus"/>
+    </Decorator>
+
+    <Action ID="SetBlackboardBool">
+      <input_port name="output_key" type="std::string"/>
+      <input_port name="value" type="bool"/>
+    </Action>
+
+    <Action ID="SetBlackboardString">
+      <input_port name="output_key" type="std::string"/>
+      <input_port name="value" type="std::string"/>
+    </Action>
+
+    <Action ID="DebugPrint">
+      <input_port name="debug_message" type="std::string"/>
+      <input_port name="print_pose" type="geometry_msgs::msg::PoseStamped"/>
+    </Action>
+
+  </TreeNodesModel>
+
+</root>

@@ -1,0 +1,15 @@
+<?xml version='1.0' ?>
+
+<!--
+  Launches the R1 fleet adapter node with the packaged config + nav graph.
+  The zenoh bridge and RMF core are started separately by scripts/bringup.sh.
+-->
+<launch>
+  <arg name="config_file"
+       default="$(find-pkg-share fleet_adapter_r1)/config/config.yaml"/>
+  <arg name="nav_graph"
+       default="$(find-pkg-share rmf_shared_maps)/yondu/nav_graph.yaml"/>
+
+  <node pkg="fleet_adapter_r1" exec="fleet_adapter" output="screen"
+        args="-c $(var config_file) -n $(var nav_graph)"/>
+</launch>

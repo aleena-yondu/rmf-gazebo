@@ -1,0 +1,9 @@
+environment_variables:
+  LIDAR:
+    description: "LiDAR sensor hardware type"
+    allowed_values: ["LIVOX", "OUSTER"]
+    default: "LIVOX"
+  LOCATION:
+    description: "Deployment warehouse location"
+    allowed_values: ["YONDU", "SHIPBOTS"]
+    default: "YONDU"

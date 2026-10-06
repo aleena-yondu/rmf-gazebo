@@ -1,0 +1,18 @@
+# Request - Request the next pick to display
+# Sent from teleop station to shiphero_wms
+
+string cart_barcode    # Cart to get next pick for (required)
+string robot_id        # Robot ID making request
+string batch_mode      # Optional batch-shape override: '', 'auto', 'mib', or 'sib'.
+                       # Empty string is treated as the WMS default ('auto') so
+                       # existing clients (built before this field existed) get
+                       # zero behavior change. 'mib'/'sib' force the shape even
+                       # when (SKU, location) collisions would otherwise route
+                       # the other way -- intended for CI / manual MIB testing.
+---
+# Response
+bool success           # True if a pick is available
+string message         # Status message or reason if no pick
+bool pick_available    # True if there's a pick to dispatch
+bool batch_fetched     # True if a new batch was fetched
+int32 queue_size       # Number of picks remaining in cart queue

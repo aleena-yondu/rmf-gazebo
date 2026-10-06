@@ -1,0 +1,124 @@
+# R1 fleet adapter configuration example.
+# Copy this file. Then replace each example value for the deployment.
+# Required fields have a "Required" comment. Other fields show their defaults.
+
+rmf_fleet:
+  # Required. Use one fleet name in RMF, task_service, and related tools.
+  name: "example_r1_fleet"
+
+  # Required. Enter [maximum velocity, maximum acceleration].
+  limits:
+    # Units are meters per second and meters per second squared.
+    linear: [0.7, 0.5]
+    # Units are radians per second and radians per second squared.
+    angular: [0.6, 0.6]
+
+  # Required. RMF models the robot as two circles.
+  profile:
+    # Enter the body radius in meters.
+    footprint: 0.5
+    # Enter the safety radius in meters. Use a value not less than footprint.
+    vicinity: 0.6
+
+  # Required. If the robot can drive backward, set this field to true.
+  reversible: false
+
+  # Required. Enter the battery data from the robot manufacturer.
+  battery_system:
+    voltage: 48.0  # Volts.
+    capacity: 30.0  # Ampere-hours.
+    charging_current: 20.0  # Amperes.
+
+  # Required. RMF uses this data to estimate motion energy.
+  mechanical_system:
+    mass: 120.0  # Kilograms.
+    moment_of_inertia: 25.0  # Kilogram square meters.
+    friction_coefficient: 0.22  # Unitless.
+
+  # Required. Enter the continuous power for computers and sensors.
+  ambient_system:
+    power: 30.0  # Watts.
+
+  # Required. Enter the continuous power for tools and manipulators.
+  tool_system:
+    power: 100.0  # Watts.
+
+  # Required. Use state-of-charge values from 0.0 through 1.0.
+  recharge_threshold: 0.20
+  recharge_soc: 0.90
+
+  # Optional. This value is the FleetState frequency in hertz.
+  # The default is 2.0. A value of 0 disables FleetState publication.
+  publish_fleet_state: 2.0
+
+  # Required. If this value is false, RMF ignores estimated battery use.
+  account_for_battery_drain: true
+
+  # Optional. Enter the maximum lane-merge distance in meters.
+  # The default is 0.1.
+  lane_merge_distance: 0.3
+
+  # Required. These fields define the tasks that the fleet accepts.
+  task_capabilities:
+    loop: true
+    delivery: false
+    clean: false
+    # Required. Use "park", "charge", or "nothing".
+    finishing_request: "park"
+    # Enter each RMF action category that the R1 client implements.
+    actions: ["pick", "place", "approach_bin"]
+
+  # Optional. Omit this block to use the shown topic and speed defaults.
+  fleet_manager:
+    # These topics must match the R1 client and the Zenoh configuration.
+    state_topic: "/r1_fleet/robot_state"
+    nav_request_topic: "/r1_fleet/nav_request"
+    action_request_topic: "/r1_fleet/action_request"
+    mode_request_topic: "/r1_fleet/mode_request"
+    # RMF uses this speed to estimate the remaining travel time.
+    nominal_linear_speed: 0.5  # Meters per second. The default is 0.5.
+
+# Optional. These point pairs define the transform from RMF to the robot map.
+# Put matching points at the same list index.
+# Use four or more measured points for a stable transform.
+# If both frames are equal, use the same points in both lists.
+# If this block is absent, the adapter uses an identity transform.
+reference_coordinates:
+  rmf:
+    - [0.0, 0.0]
+    - [5.0, 0.0]
+    - [0.0, 5.0]
+    - [5.0, 5.0]
+  robot:
+    - [0.0, 0.0]
+    - [5.0, 0.0]
+    - [0.0, 5.0]
+    - [5.0, 5.0]
+
+# Required. Add one entry for each robot in this fleet.
+robots:
+  # This key must match the robot name in FleetRobotState messages.
+  r1_01:
+    # Required. Keep this mapping, even when it contains no optional fields.
+    robot_config:
+      # Optional. RMF requests a new plan after this delay in seconds.
+      max_delay: 15.0
+
+    # Required. These fields connect the robot to the RMF graph.
+    rmf_config:
+      # Optional. This value is the RMF state-update frequency in hertz.
+      # The default is 5.
+      robot_state_update_frequency: 5
+
+      # Required. The map name must match robot state and the navigation graph.
+      start:
+        map_name: "L1"
+        # Optional. Enter a graph waypoint to force the initial RMF position.
+        # If this field is absent, RMF uses the nearest waypoint on map_name.
+        waypoint: "r1_start"
+        # Optional. The adapter uses this yaw only with the waypoint field.
+        orientation: 0.0  # Radians.
+
+      # Required. This waypoint must exist in the navigation graph.
+      charger:
+        waypoint: "r1_charger"

@@ -1,0 +1,287 @@
+# Configuration for online_imu_bias_estimator node (LIVOX pipeline)
+#
+# Schema mirrors src/online_imu_bias_estimator.cpp parameter declarations.
+# The LIVOX pipeline consumes the same raw Livox IMU source used on main.
+#
+# Switching sources later:
+#   - Livox/current: input_topic=/livox/imu, projection OFF, EKF fuses vyaw
+#     only from /imu/data_bias_corrected.
+#   - CV7/new chassis IMU: set input_topic to that IMU topic (for example
+#     /imu/data or a CV7 driver topic), keep projection OFF if the IMU frame is
+#     already close to base/lidar axes, and retune covariances/rates.
+#   - ZED head IMU fallback: set input_topic=/zed/head/imu and re-enable the
+#     calibrated projection block below. That path depends on the measured row
+#     and should be field-tested before re-enabling yaw attitude fusion.
+#
+# Dynamic-bias compensation (linear_* / quad_*) is intentionally OFF for
+# LIVOX — see the long comment near `dynamic_bias_model` below for the
+# 2026-04-24 validation result and why the wheel-odom-referenced fit is
+# unreliable for in-place rotation on this platform.
+#
+# Anything you change here MUST keep working for OUSTER too (shared C++
+# binary). New behavior gated by parameters that default to false in
+# the C++ source — never flip a default on without re-validating both
+# pipelines.
+/**:
+  ros__parameters:
+    # Topic configuration
+    # Source: raw Livox IMU visible directly on the nav domain.
+    input_topic: "/livox/imu"
+    output_topic: "/imu/data_bias_corrected"
+    odom_topic: "/synchro_odom"  # Set to empty string "" to disable odometry gating
+
+    # Projection is OFF for the Livox/default path. Livox is treated as a
+    # yaw-rate source, and the EKF fuses only angular_velocity.z. Re-enable this
+    # only for a remounted/head IMU whose angular velocity must be projected
+    # into base/lidar yaw.
+    project_angular_velocity_z: false
+    # Historical ZED-head projection row. Keep this value for quick fallback,
+    # but do not enable it for /livox/imu.
+    angular_velocity_row2: [-0.1379, -0.0115, 0.9904]
+    output_frame_id: ""
+
+    # A/B TEST KNOB for trusting the URDF TF chain when using a non-Livox IMU.
+    # When true, the estimator overrides project_angular_velocity_z and
+    # output_frame_id above: it publishes raw bias-corrected angular velocity in
+    # the source IMU frame and lets robot_localization perform IMU->base_link
+    # via TF. Useful when adding the new CV7/chassis IMU and validating its URDF.
+    #
+    # 2026-05-13: reverted to false. Trying URDF for a day showed yaw
+    # drift coming back ("worse and worse" over long aisles + in-place
+    # rotation). The URDF chain is still off vs. the calibrated row by
+    # the ~12° tilt documented in sensor_pipeline.py:190-198, so chassis
+    # pitch/roll under linear accel couples into base_link vyaw -- same
+    # mechanism that broke deskew on 2026-05-11. Keep the calibrated
+    # projection above until the URDF is actually fixed.
+    trust_urdf_tf_chain: false
+
+    # Stationarity detection thresholds
+    lin_stationary_thresh: 0.01  # m/s - linear velocity threshold
+
+    # Legacy single-threshold fallback for the angular axis. UNUSED on
+    # LIVOX because the hysteresis pair below
+    # (ang_stationary_thresh_enter / _exit) takes precedence whenever
+    # both are > 0. Commented (not deleted) so the next reader sees the
+    # default the C++ would otherwise pick up
+    # (declare_parameter("ang_stationary_thresh", 0.02)).
+    # ang_stationary_thresh: 0.02  # rad/s — overridden by hysteresis below
+
+    # Hysteresis on the angular stationary threshold.
+    #   enter (tighter): |wz| must drop below this to BECOME stationary
+    #   exit  (looser):  |wz| must rise above this to LEAVE stationary
+    # Prevents the "consec resets every IMU noise spike" failure mode
+    # when the robot is parked but the gyro twitches just over 0.02
+    # rad/s for one frame. (Notes §7.5.)
+    ang_stationary_thresh_enter: 0.020
+    ang_stationary_thresh_exit:  0.025
+
+    # Initial bias seed — ZED IMU not calibrated yet, start at zero and let the
+    # online estimator converge during warmup (robot must be still at startup).
+    initial_gyro_bias: [0.0, 0.0, 0.0]  # rad/s [x, y, z]
+
+    # Stationarity hysteresis: require this many consecutive stationary IMU msgs
+    # before batch accumulation starts (~0.8s at 100Hz absorbs odom-lag + settling vibration).
+    min_stationary_count: 80
+
+    # Startup warmup: average this many IMU samples at boot to seed initial bias.
+    # Motion during warmup corrupts the estimate — keep robot still at startup.
+    warmup_samples: 500
+    # Failsafe: don't block warmup forever if startup motion/noise prevents
+    # collecting all warmup_samples. On timeout, estimator forces warmup
+    # complete using the partial mean (or initial bias if none collected).
+    warmup_timeout_sec: 15.0
+
+    # Batch bias update: accumulate this many confirmed-stationary samples,
+    # then compute their mean and blend into gyro_bias.
+    # 200 = 2s at 100Hz → σ_estimate = 0.01/√200 ≈ 0.0007 rad/s.
+    # Motion resets the accumulator (partial batches are discarded).
+    bias_update_samples: 200
+
+    # Blend factor when applying batch mean: 1.0=replace fully, 0.5=average with old bias.
+    # 0.5 provides safety against occasional outlier batches.
+    bias_update_alpha: 0.5
+
+    # Mirror the existing z batch-update logic onto x and y once warmup
+    # is finished. Even in 2-D EKF mode this is useful: the corrected
+    # wx/wy are still published, and any consumer that ever opts into
+    # them (e.g. a future 3-D extension) will see a tracked bias rather
+    # than a 5-second-old warmup snapshot.
+    batch_update_xy: true
+
+    # Stationarity detection
+    use_z_only_stationary: true
+    # Odom freshness deadline for v-gating. If /synchro_odom goes stale,
+    # estimator falls back to angular-only stationarity gating instead of
+    # freezing bias updates indefinitely.
+    odom_timeout_sec: 1.0
+
+    # Dynamic bias model during rotation.
+    # Options: "none" | "linear" | "quadratic"
+    #
+    # FROZEN AT "none" FOR LIVOX. Validated 2026-04-24 with a 720° in-place
+    # wall test: yaw_before = -74.5°, yaw_after = -78.4°, drift = -3.9°
+    # (0.55% of total rotation, well under the 5° pass threshold). The
+    # ZED IMU + stationary-bias estimator is doing its job; no dynamic
+    # correction is warranted.
+    #
+    # An earlier `calibrate_rotation_bias.py --use-odom` run on a CW+CCW
+    # rotation bag DID produce a non-trivial linear fit
+    # (b0 = -0.0039, k = -0.0741). DO NOT paste it. The wheel-odom
+    # reference over-reads body yaw during in-place rotation due to slip,
+    # so the "rotation bias" the script measures is mostly wheel slip,
+    # not gyro error. Applying it would push the EKF toward the wheel
+    # story over the IMU — the opposite of what we want, and the reason
+    # we drop wheel vyaw in livox/ekf.yaml in the first place. A real
+    # dynamic-bias calibration for this pipeline needs a ground-truth
+    # rotation reference (mocap, marked-wall heading reads, or KISS-ICP
+    # on a repetitive-pattern LiDAR — Livox is non-repetitive so its
+    # own scans are not usable). See agent_context/livox_odom_imu_optimization.md.
+    dynamic_bias_model: "none"
+
+    # linear_*  / quad_* INTENTIONALLY UNSET — see comment above.
+    # The C++ defaults all of these to 0.0 in declare_parameter(), so
+    # leaving them out has no effect; they are commented (not deleted)
+    # only as a tripwire so the next person who edits this file sees the
+    # decision before re-enabling.
+    # linear_b0: 0.0
+    # linear_k:  0.0
+    # quad_b0:   0.0
+    # quad_k:    0.0
+    # quad_k2:   0.0
+
+    # Output low-pass filter on corrected wz (2nd-order Butterworth IIR, -40dB/decade).
+    # Reduces angle random walk at the cost of phase lag (~90° at fc).
+    # Recommended range: 20.0-30.0 Hz. Set to 0.0 to disable.
+    lpf_cutoff_hz: 20.0
+    # LPF design sample rate (Hz). Coefficients are generated against the
+    # processing rate of the incoming IMU callback stream (not publish_rate).
+    # Livox IMU is expected to be high-rate on this stack.
+    lpf_sample_rate_hz: 200.0
+
+    # Output rate cap (Hz). Bias-estimation math runs at the full ~400 Hz
+    # ZED input rate regardless; this only throttles the actual publish on
+    # /imu/data_bias_corrected to bound EKF measurement-update load.
+    #
+    # Why 200 Hz on LIVOX (vs the C++ default / OUSTER's 100 Hz):
+    #   The pointcloud_deskew node uses snap.back().wz (most recent IMU
+    #   sample) as the wz estimate for any point whose timestamp is past
+    #   the back of the IMU buffer. That happens for the last
+    #   (1 / publish_rate) seconds of every scan -- ~10 ms at 100 Hz, so
+    #   the last 10% of every Livox scan was getting a stale wz.
+    #   That's invisible during steady rotation (wz is constant), but
+    #   visible as a rear-edge shift during angular accel/decel ("flipping
+    #   back to zero" when stopping a rotation), which is exactly the
+    #   most common deskew workload on this robot.
+    #   Halving the gap to 5 ms (200 Hz) cuts that artifact in half at
+    #   2x EKF measurement-update cost (well under the 13-msg/cycle
+    #   limit that originally motivated the 100 Hz cap).
+    #
+    # If a rear-edge artifact remains visible after this change: try 400.0
+    # AND bump livox/ekf.yaml's imu0_queue_size from 10 to 20 so latency
+    # spikes don't drop frames at the EKF input.
+    #
+    # Set to 0 (or negative) to disable the cap and publish on every
+    # input frame -- only useful when debugging IMU latency directly.
+    publish_rate: 200.0
+
+    # Published gyro_z covariance (rad^2/s^2) per regime. Lets the EKF
+    # adaptively trust the corrected vyaw based on convergence state.
+    # Opt-in via set_yaw_rate_covariance below; OUSTER yaml leaves this
+    # off so its source-IMU covariance flows through unchanged.
+    #
+    # Derivation (against measured noise, not the napkin (0.02)^2 = 4e-4
+    # that was here previously). Numbers from imu_yaw_monitor.py /
+    # docs/imu_bias_estimator_notes.md §10:
+    #
+    #   Stationary  raw_wz std    ≈ 0.003 rad/s   → var ≈ 9e-6
+    #     plus bias-estimate uncertainty after a 200-sample batch update
+    #     (σ ≈ 0.0007 rad/s, var ≈ 5e-7) gives a corrected std ≈ 3e-3 and
+    #     var ≈ 1e-5. We round UP to 4e-5 so the EKF trusts the corrected
+    #     vyaw strongly, but not so strongly that a single noise spike
+    #     fights the wheel odom in the first second after recovery.
+    #
+    #   Rotating  raw_wz std up to 0.034 rad/s at fast (0.8-1.05 rad/s)
+    #     bucket → var ≈ 1.2e-3. Bias is FROZEN during rotation so it
+    #     adds nothing here. We use 1.5e-3 to leave a small headroom for
+    #     dynamic-bias-model fit error if anyone ever flips dynamic_bias
+    #     _model off "none". Within the same order of magnitude as the
+    #     previous 1e-3, but explicitly justified.
+    #
+    #   Warmup  bias estimate not yet converged. Worst case the seed is
+    #     off by ~0.01 rad/s plus raw noise; effective std ~0.03,
+    #     var ~9e-4. We use 1e-3 to be conservative -- the EKF will lean
+    #     on wheel odom and the imu0_relative startup yaw lock during
+    #     this window anyway.
+    #
+    # Numbers were 5x too pessimistic at converged (4e-4 vs measured ~1e-5)
+    # and ~2x too optimistic at fast rotation (1e-3 vs measured ~1.2e-3).
+    # Re-tune from a fresh imu_yaw_monitor.py run if you change LIDAR
+    # mount or motor / wheel setup -- mechanical vibration coupling
+    # dominates the rotating-bucket noise floor on this platform.
+    set_yaw_rate_covariance: true
+    yaw_rate_cov_warmup:    1.0e-3
+    yaw_rate_cov_converged: 4.0e-4
+    yaw_rate_cov_rotating:  4.0e-3
+
+    # Published yaw attitude covariance (rad^2) per regime, written into
+    # orientation_covariance[8]. LIVOX-only opt-in; OUSTER pipeline
+    # leaves the source covariance flowing through unchanged.
+    #
+    # Why this is needed (validated 2026-05-08 from a runtime echo of
+    # /imu/data_bias_corrected and a source read of the ZED publisher):
+    #
+    #   The IMU is published by `teleop_streaming/zed_imu_only` running
+    #   in the `backpack_teleop_zed` container and appears directly on
+    #   the nav domain (no domain_bridge process in startup).
+    #   It populates `orientation` from sl::SensorsData::imu.pose, which
+    #   is ZED SDK's 6-DoF (gyro+accel) attitude fusion. The hardware is
+    #   a ZED 2 (USB id 2b03:f780, has a BMM150 magnetometer) but the
+    #   teleop binary does NOT use the magnetometer or VIO -- yaw on
+    #   this stack is therefore pure gyro integration with no drift
+    #   bound. The published `orientation_covariance[8]` (~1.28e-6
+    #   rad^2 measured) reflects ZED's instantaneous attitude-filter
+    #   uncertainty, NOT long-term yaw drift.
+    #
+    #   With R that tight, the EKF's absolute-yaw fusion (livox/ekf.yaml
+    #   imu0_config index 5) gets a steady-state Kalman gain of ~1 and
+    #   would dominate the corrected-vyaw observation at index 11
+    #   (R = yaw_rate_cov_converged = 4e-5 rad^2/s^2) by ~30x. We
+    #   replace orientation_covariance[8] with regime-aware floors so
+    #   yaw and vyaw fusion contribute on the same order of magnitude:
+    #
+    #     converged: 1e-4 rad^2  (sigma ~0.57 deg). Compared to vyaw
+    #       converged 4e-5: vyaw still wins steady-state, but only by
+    #       ~2.5x rather than ~30x.
+    #
+    #     rotating:  1e-3 rad^2  (sigma ~1.8 deg). Broader to match the
+    #       larger gyro-noise contribution to attitude during fast
+    #       rotation; matches the rotating yaw_rate_cov_rotating order
+    #       of magnitude.
+    #
+    #     warmup:    1e-2 rad^2  (sigma ~5.7 deg). The bias estimator
+    #       hasn't converged yet so attitude has uncorrected drift on
+    #       top of base noise; let the EKF lean on wheel odom + the
+    #       imu0_relative startup yaw lock during this window.
+    #
+    # Long-loop yaw drift bound on this stack is provided by
+    # slam_toolbox's map->odom scan match -- NOT by absolute-yaw fusion
+    # at index 5. Absolute yaw at index 5 is kept enabled because it
+    # damps cold-start transients and provides a relative-attitude
+    # observation between scan-match updates; with these floors it
+    # cannot dominate vyaw.
+    # 2026-05-13: converged/rotating reverted from 1e-4/1e-3 back to
+    # 1e-2 (matches the "very stable in aisle 2" commit 3735c4b). The
+    # long derivation block above argues for the tighter floor, but
+    # tightening it in field test produced worsening yaw drift -- with
+    # imu0_relative=true the EKF index-5 observation is a delta from
+    # ZED's gyro-only attitude integrator running on ZED's INTERNAL
+    # bias (not corrected by this node; see field-by-field comment at
+    # top of online_imu_bias_estimator.cpp). Tight R there pins EKF
+    # yaw to that drifting integrator. Keep the loose floor; let vyaw
+    # (index 11) + slam_toolbox map->odom set the long-loop drift bound.
+    # NOTE: the derivation block above is now ahead of reality and
+    # should be updated in a follow-up commit.
+    set_yaw_orientation_covariance: true
+    yaw_orientation_cov_warmup:    1.0e-2
+    yaw_orientation_cov_converged: 1.0e-2
+    yaw_orientation_cov_rotating:  1.0e-2

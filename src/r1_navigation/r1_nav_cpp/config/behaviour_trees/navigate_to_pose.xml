@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+
+  <BehaviorTree ID="MainTree">
+    <SubTree ID="NavigateWithToleranceAdjustment" __autoremap="true" goal_pose="{goal}"/>
+  </BehaviorTree>
+
+  <!-- ======= SUBTREE DEFINITIONS ======== -->
+
+  <!-- Subtree that navigates to a goal pose and tries to recover failures by increasing tolerance.
+  Inputs: goal_pose: PoseStamped
+  Outputs: path: nav_msgs/Path
+  Executes navigation along outputted path -->
+  <BehaviorTree ID="NavigateWithToleranceAdjustment">
+
+    <Sequence name="SetToleranceAndNavigate">
+
+      <!-- Set initial tolerances -->
+      <SetTolerance planner_set="0.05" xy_set="0.15" yaw_set="0.1"/>
+
+      <!-- Navigate with recoveries -->
+      <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+
+        <PipelineSequence name="NavigateWithReplanning">
+
+          <PublishPose pose="{goal_pose}"/>
+
+          <RateController hz="1.0">
+            <RecoveryNode number_of_retries="1" name="ComputePathToPoseRecovery">
+              <ComputePathToPose goal="{goal_pose}" path="{path}" planner_id="GridBased"/>
+              <ReactiveFallback name="ComputePathToPoseRecoveryFallback">
+                <GoalUpdated/>
+                <ClearEntireCostmap name="ClearGlobalCostmap-Context"
+                                    service_name="global_costmap/clear_entirely_global_costmap"/>
+              </ReactiveFallback>
+            </RecoveryNode>
+          </RateController>
+
+          <RecoveryNode number_of_retries="1" name="FollowPathRecovery">
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+            <ReactiveFallback name="FollowPathRecoveryFallback">
+              <GoalUpdated/>
+              <ClearEntireCostmap name="ClearLocalCostmap-Context"
+                                  service_name="local_costmap/clear_entirely_local_costmap"/>
+            </ReactiveFallback>
+          </RecoveryNode>
+
+        </PipelineSequence>
+
+        <ReactiveFallback name="RecoveryFallback">
+          <GoalUpdated/>
+          <SetTolerance planner_step="0.1"/>
+        </ReactiveFallback>
+
+      </RecoveryNode>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- TreeNodesModel for Groot / documentation -->
+  <TreeNodesModel>
+
+    <Action ID="PublishPose">
+      <input_port name="pose" type="geometry_msgs::msg::PoseStamped"/>
+    </Action>
+
+    <Action ID="SetTolerance" help="Sets/increments tolerances on planner_server and controller_server">
+      <input_port name="planner_set" type="double">Set GridBased.tolerance to this value</input_port>
+      <input_port name="planner_step" type="double">Increment GridBased.tolerance by this value</input_port>
+      <input_port name="xy_set" type="double">Set goal_checker.xy_goal_tolerance to this value</input_port>
+      <input_port name="xy_step" type="double">Increment goal_checker.xy_goal_tolerance by this value</input_port>
+      <input_port name="yaw_set" type="double">Set goal_checker.yaw_goal_tolerance to this value</input_port>
+      <input_port name="yaw_step" type="double">Increment goal_checker.yaw_goal_tolerance by this value</input_port>
+    </Action>
+
+    <Action ID="ComputePathToPose">
+      <input_port name="goal" type="geometry_msgs::msg::PoseStamped"/>
+      <output_port name="path" type="nav_msgs::msg::Path"/>
+      <input_port name="planner_id" type="std::string"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="FollowPath">
+      <input_port name="path" type="nav_msgs::msg::Path"/>
+      <input_port name="controller_id" type="std::string"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Action ID="ClearEntireCostmap">
+      <input_port name="service_name" type="std::string"/>
+      <input_port name="node" type="rclcpp::Node::SharedPtr"/>
+    </Action>
+
+    <Condition ID="GoalUpdated"/>
+
+    <Decorator ID="RateController">
+      <input_port name="hz" type="double"/>
+    </Decorator>
+
+  </TreeNodesModel>
+
+</root>

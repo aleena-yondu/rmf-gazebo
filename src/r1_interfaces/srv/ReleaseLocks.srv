@@ -1,0 +1,12 @@
+# Request - Release shipment locks in ShipHero
+# Use for recovery from failures, testing cleanup, etc.
+
+string cart_barcode    # Optional: specific cart to release locks for (empty = all carts)
+bool release_queued    # Also release locks for items in pending queues
+---
+# Response
+bool success           # True if operation completed (some unlocks may have failed)
+string message         # Status message
+int32 locks_released   # Number of locks successfully released
+int32 locks_failed     # Number of locks that failed to release
+string[] shipment_ids  # List of shipment IDs that were processed

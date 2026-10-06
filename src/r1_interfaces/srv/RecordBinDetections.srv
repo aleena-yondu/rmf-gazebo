@@ -1,0 +1,21 @@
+# Request: forward a batch of camera bin detections for fusion via the
+# probabilistic data association update on the warehouse cache.
+#
+# Provide either bay_key OR shelf_key (bay_key wins if both are non-empty).
+#
+#   bay_key   - e.g. "X1-01". Multi-shelf fusion: warehouse partitions
+#               detections by detection.center.z against the bay's shelves
+#               and runs PDA per shelf. Detections whose z falls outside
+#               every shelf bracket are counted in `clutter` and dropped.
+#   shelf_key - e.g. "X1-01-A". Legacy single-shelf fusion: every detection
+#               is assumed to belong to the named shelf (no z partitioning).
+string bay_key
+string shelf_key
+r1_interfaces/BinDetection[] detections
+---
+bool success
+string message
+float32 best_bin_confidence              # post-update confidence of the order's target bin (0 if N/A)
+int32 matched                            # sum across shelves when bay_key was used
+int32 missed                             # sum across shelves when bay_key was used
+int32 clutter                            # includes z-bracket misses when bay_key was used

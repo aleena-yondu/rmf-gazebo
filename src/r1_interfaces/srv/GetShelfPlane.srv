@@ -1,0 +1,27 @@
+# Request: get the per-bay 3D search region used by the camera-driven bin
+# search. shelf_key has the form "<row><row_num>-<bay>-<shelf>" (e.g.
+# "X1-01-A") or "<row><row_num>-<bay>" (e.g. "X1-01") for the bay itself.
+# If shelf_key is empty, the server uses the current /teleop/order's bin to
+# resolve the bay.
+#
+# The response describes the entire bay vertical extent (bottom of the
+# lowest shelf to top of the highest shelf), with per-shelf brackets
+# delimiting each shelf's sub-range. The accompanying apriltag IDs are the
+# bay-edge tags converted to LEFT / RIGHT relative to an observer facing
+# shelf_yaw_rad (conversion done by the warehouse based on the row's
+# yaw_deg and the shelf line direction). Either apriltag id may be -1 if
+# no tag is installed at that edge.
+string shelf_key
+---
+bool found
+geometry_msgs/Point shelf_start
+geometry_msgs/Point shelf_end
+float32 shelf_bottom_z                       # bottom of LOWEST shelf in the bay (m, includes beam)
+float32 shelf_top_z                          # top of HIGHEST shelf in the bay (m)
+float32 shelf_yaw_rad
+
+r1_interfaces/ShelfBracket[] shelf_brackets  # per-shelf [bottom_z, top_z], ordered bottom -> top
+int32 left_apriltag_id                       # bay edge as seen by an observer facing shelf_yaw_rad
+int32 right_apriltag_id
+
+string message

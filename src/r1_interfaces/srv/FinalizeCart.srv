@@ -1,0 +1,9 @@
+# Request - Finalize cart setup (count totes, mark as ready)
+string cart_barcode    # Cart barcode to finalize
+---
+# Response
+bool success
+string message
+string cart_barcode    # Echo back the cart barcode
+int32 total_totes      # Number of totes configured
+string status          # New status (should be "ready")

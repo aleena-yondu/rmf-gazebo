@@ -1,0 +1,484 @@
+# ==================================================================================================
+#                       --- Baseline Nav2 Parameter Configuration ---
+#
+#        For a Holonomic (Swerve) Robot on ROS 2 Humble at Yondu AI
+#
+# This is a BASELINE configuration using proven, simple planners and controllers.
+# Once this works reliably, you can upgrade to MPPI and SmacPlanner.
+#
+# Stack Choice:
+# - Localization: SLAM Toolbox (Localization Mode) - Launched separately
+# - Global Planner: NavFn - Simple, reliable A* planner
+# - Local Planner (Controller): Regulated Pure Pursuit - Proven for holonomic robots
+# ==================================================================================================
+
+# --------------------------------------------------------------------------------
+# COMPONENT 2: CONTROLLER SERVER (Local Planner)
+# Generates cmd_vel messages using RPP Controller
+# --------------------------------------------------------------------------------
+controller_server:
+  ros__parameters:
+    controller_frequency: 10.0  # REDUCED: Match MPPI model_dt (10Hz) to prevent stutter
+    min_x_velocity_threshold: 0.05   # INCREASED: Prevent micro-movements that cause vibration
+    min_y_velocity_threshold: 0.05   # INCREASED: Prevent micro-movements that cause vibration
+    min_theta_velocity_threshold: 0.05  # INCREASED: Prevent micro-movements that cause vibration
+    transform_tolerance: 1.0  # Trust odom more - reduced sensitivity to transform delays
+
+    progress_checker_plugin: "progress_checker"
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.25  # More lenient - was 0.5
+      movement_time_allowance: 30.0   # More time - was 20.0
+
+    goal_checker_plugin: "goal_checker"
+    goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.25
+      yaw_goal_tolerance: 0.05
+      stateful: true
+
+    controller_plugins: ["FollowPath"]
+    FollowPath:
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.4
+      forward_sampling_distance: 0.5
+      rotate_to_heading_angular_vel: 2.0
+      max_angular_accel: 3.0
+      simulate_ahead_time: 1.0
+
+      motion_model: "Omni"
+      
+      time_steps: 25
+      model_dt: 0.1
+      batch_size: 300
+      iteration_count: 1
+      temperature: 0.25        # REDUCED: Tighter optimization, more decisive motion
+      gamma: 0.015             # Lower = less timid, smoother velocity changes
+      retry_attempt_limit: 1   # ADDED: Retry on failure for robustness
+      
+      # Sampling settings - controlled exploration to prevent corner cutting
+      sampling_std: [0.15, 0.15, 0.20]  # Moderate noise for smoother, more natural trajectories
+      
+      # Velocity limits - SMOOTH SPEED
+      vx_max: 1.0              # Reduced for smoother motion
+      vx_min: -1.0
+      vy_max: 1.0              # Reduced for smoother lateral motion
+      vy_min: -1.0
+      wz_max: 1.5              # Reduced for calmer rotation
+      
+      # Acceleration limits - VERY SMOOTH
+      ax_max: 1.0               # Much gentler acceleration
+      ax_min: -1.0
+      ay_max: 1.0              # Much gentler lateral acceleration
+      ay_min: -1.0
+      az_max: 2.0              # Much gentler angular acceleration
+      
+      # Rotation sharpness tuning
+      rotation_scale_factor: 1.0  # Lower = less aggressive rotation
+
+      # Simplified critics - only essentials to reduce twitchy behavior
+      critics: [
+        "GoalCritic",
+        "GoalAngleCritic",
+        "ObstaclesCritic",
+        "PathFollowCritic",
+        "PathAngleCritic"
+      ]
+
+      PathAngleCritic:
+        enabled: true
+        weight: 40.0
+        offset_from_furthest: 10
+        threshold_to_consider: 0.4
+        max_angle_to_furthest: 0.35
+        mode: 0
+      
+      # Goal-seeking behavior - stronger drive to goal
+      GoalCritic:
+        enabled: true
+        weight: 20.0              # Moderate weight to actually reach goal
+        threshold_to_consider: 0.4
+      
+      # Goal orientation alignment - very gentle
+      GoalAngleCritic:
+        enabled: true
+        weight: 5.0              # Very low weight - just enough to orient at goal
+        threshold_to_consider: 0.4  # Start aligning when close
+      
+      # Obstacle avoidance - FOOTPRINT-BASED for narrow aisles
+      ObstaclesCritic:
+        enabled: true
+        weight: 10.0             # REDUCED: Less aggressive avoidance, let robot move
+        consider_footprint: true # CRITICAL: Use actual robot footprint
+        collision_cost: 10000.0  # Very high - reject any collision trajectory
+        collision_margin_distance: 0.10  # Slightly larger margin
+        near_goal_distance: 0.5
+        inflation_layer_name: "inflation_layer"
+        
+        # Critical parameters for MPPI obstacle handling
+        cost_power: 1
+        repulsion_weight: 1.2    # Moderate repulsion
+        critical_weight: 30.0    # Strong penalty near obstacles
+        trajectory_point_step: 2  # Check more points for accuracy
+
+      # Path following - GENTLE for smooth, natural motion
+      PathFollowCritic:
+        enabled: true
+        weight: 8.0              # Lower - allow goal critic to dominate near goal
+        offset_from_furthest: 10 # Look further ahead for smoother paths
+        threshold_to_consider: 0.4  # Only enforce path following when far from goal
+
+# --------------------------------------------------------------------------------
+# COMPONENT 3: PLANNER SERVER (Global Planner)
+# Creates a global path using NavFn (Simple A* planner).
+# --------------------------------------------------------------------------------
+planner_server:
+  ros__parameters:
+    #expected_planner_frequency: 2.0  # Reduced from 5.0 to ease load
+    planner_plugins: ["GridBased"]
+    GridBased:
+      # plugin: "nav2_theta_star_planner/ThetaStarPlanner"
+      # how_many_corners: 8 #to choose between 4-connected and 8-connected graph expansions, the accepted values are 4 and 8
+      # w_euc_cost: 1.0  # Weight for length of path
+      # w_traversal_cost: 2.0 #t tunes how harshly the nodes of high cost are penalised. From the above g(neigh) equation you can see that the cost-aware component of the cost function forms a parabolic curve, thus this parameter would, on increasing its value, make that curve steeper allowing for a greater differentiation (as the delta of costs would increase, when the graph becomes steep) among the nodes of different costs.
+      
+      plugin: "nav2_smac_planner/SmacPlanner2D"
+      tolerance: 0.05                   # REDUCED: Tighter tolerance = less replanning jitter
+      downsample_costmap: false           # No downsampling for accuracy
+      downsampling_factor: 1
+      allow_unknown: true                 # Allow planning through unknown space
+      max_iterations: 1000000             # Max iterations for planner, -1 for unlimited
+      max_on_approach_iterations: 1000
+      max_planning_time: 5.0              # Max time in seconds
+      motion_model_for_search: "MOORE"    # 8-connected for smoother paths
+      cost_travel_multiplier: 2.0         # Moderate penalty - don't force paths too close to obstacles
+      use_final_approach_orientation: false # Let MPPI handle orientation
+      smooth_path: true                   # Enable built-in path smoothing
+
+
+# --------------------------------------------------------------------------------
+# COMPONENT 4: BEHAVIOR SERVER, SMOOTHER SERVER, WAYPOINT FOLLOWER
+# Standard servers required by the Nav2 stack.
+# --------------------------------------------------------------------------------
+behavior_server:
+  ros__parameters:
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 5.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait"]
+    spin:
+      plugin: "nav2_behaviors/Spin"
+      simulate_ahead_time: 2.0
+      max_rotational_vel: 1.2        # MATCHED to reduced MPPI limits
+      min_rotational_vel: 0.3        # Smoother starts
+      rotational_acc_lim: 1.0        # MATCHED to reduced MPPI limits
+    backup:
+      plugin: "nav2_behaviors/BackUp"
+      simulate_ahead_time: 2.0
+      backup_dist: 0.3
+      backup_speed: 0.15
+    drive_on_heading:
+      plugin: "nav2_behaviors/DriveOnHeading"
+      simulate_ahead_time: 2.0
+      max_linear_vel: 0.5            # MATCHED to reduced MPPI limits
+      min_linear_vel: 0.1
+      max_angular_vel: 1.2           # MATCHED to reduced MPPI limits
+    wait:
+      plugin: "nav2_behaviors/Wait"
+    global_frame: odom
+    robot_base_frame: base_link
+    transform_tolerance: 2.0  # Trust odom more
+
+# NOTE: Smoother server is launched by nav2_bringup but not used by our BT.
+# SmacPlanner2D's built-in smooth_path handles smoothing instead.
+# We keep minimal config here so the lifecycle manager doesn't fail.
+smoother_server:
+  ros__parameters:
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      do_refinement: true
+      refinement_num: 2
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 5
+    stop_on_failure: false
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: true
+      waypoint_pause_duration: 0
+
+# --------------------------------------------------------------------------------
+# COMPONENT 5: BEHAVIOR TREE NAVIGATOR
+# Orchestrates the entire navigation process.
+# --------------------------------------------------------------------------------
+bt_navigator:
+  ros__parameters:
+    use_sim_time: false
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 100
+    default_server_timeout: 40        # INCREASED from 30
+    transform_tolerance: 1.5          # INCREASED from 0.5 to match controller
+    enable_groot_monitoring: False
+    groot_zmq_publisher_port: 1666
+    groot_zmq_server_port: 1667
+    
+    # CRITICAL FIX: Use recovery-enabled BT for both single and multi-goal navigation
+    # This enables backup/spin/replan when controller fails
+    default_nav_to_pose_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml"
+    default_nav_through_poses_bt_xml: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
+    
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_compute_path_through_poses_action_bt_node
+      - nav2_smooth_path_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_assisted_teleop_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_drive_on_heading_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+      - nav2_goal_updated_condition_bt_node
+      - nav2_globally_updated_goal_condition_bt_node
+      - nav2_is_path_valid_condition_bt_node
+      - nav2_initial_pose_received_condition_bt_node
+      - nav2_reinitialize_global_localization_service_bt_node
+      - nav2_rate_controller_bt_node
+      - nav2_distance_controller_bt_node
+      - nav2_speed_controller_bt_node
+      - nav2_truncate_path_action_bt_node
+      - nav2_truncate_path_local_action_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - nav2_time_expired_condition_bt_node
+      - nav2_path_expiring_timer_condition
+      - nav2_distance_traveled_condition_bt_node
+      - nav2_single_trigger_bt_node
+      - nav2_goal_updated_controller_bt_node
+      - nav2_is_battery_low_condition_bt_node
+      - nav2_navigate_through_poses_action_bt_node
+      - nav2_navigate_to_pose_action_bt_node
+      - nav2_remove_passed_goals_action_bt_node
+      - nav2_planner_selector_bt_node
+      - nav2_controller_selector_bt_node
+      - nav2_goal_checker_selector_bt_node
+      - nav2_controller_cancel_bt_node
+      - nav2_path_longer_on_approach_bt_node
+      - nav2_wait_cancel_bt_node
+      - nav2_spin_cancel_bt_node
+      - nav2_back_up_cancel_bt_node
+      - nav2_assisted_teleop_cancel_bt_node
+      - nav2_drive_on_heading_cancel_bt_node
+      - nav2_is_battery_charging_condition_bt_node
+      - r1_nav_cpp_bt_nodes
+
+
+# --------------------------------------------------------------------------------
+# COMPONENT 6: COSTMAPS (Global and Local)
+# Defines the robot's environment representation.
+# --------------------------------------------------------------------------------
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 0.5
+      publish_frequency: 0.5
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: false
+      # Initial footprint - will be dynamically updated by dynamic_footprint node
+      footprint: "[\
+       [0.185, 0.327], \
+       [-0.144, 0.327], \
+       [-0.382, 0.119], \
+       [-0.382, -0.119], \
+       [-0.144, -0.327], \
+       [0.185, -0.327]\
+       ]"
+      footprint_padding: 0.02
+      resolution: 0.05
+      track_unknown_space: true
+      rolling_window: false
+      transform_tolerance: 2.0
+      
+      plugins: ["static_layer", "obstacle_layer", "denoise_layer", "inflation_layer"]
+      
+     
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        enabled: true
+        subscribe_to_updates: true
+        transform_tolerance: 0.5
+        map_topic: "/map"  # ADD THIS - explicitly set the map topic
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        observation_sources: scan
+        max_obstacle_height: 1.0
+        scan:
+          topic: /scan
+          max_obstacle_height: 1.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.45      # Filter out robot body
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.45      # Ignore readings within robot footprint
+      
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        inflation_radius: 0.4           # INCREASED: Plan paths with more margin around corners
+        cost_scaling_factor: 3.0         # Steeper gradient near obstacles
+      
+      denoise_layer:
+        plugin: "nav2_costmap_2d::DenoiseLayer"
+        enabled: true
+        minimal_group_size: 10
+        group_connectivity_type: 8
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 3.0
+      publish_frequency: 1.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: false
+      rolling_window: true
+      width: 5
+      height: 5
+      resolution: 0.05
+      # Initial footprint - will be dynamically updated by dynamic_footprint node
+      footprint: "[\
+       [0.185, 0.327], \
+       [-0.144, 0.327], \
+       [-0.382, 0.119], \
+       [-0.382, -0.119], \
+       [-0.144, -0.327], \
+       [0.185, -0.327]\
+       ]"
+      footprint_padding: 0.02
+      transform_tolerance: 2.0  # Trust odom more
+      
+      plugins: ["obstacle_layer", "denoise_layer", "inflation_layer"]
+      
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        max_obstacle_height: 2.0       # Apply globally
+        observation_sources: scan
+        scan:
+          topic: /scan                 # was /scan_filtered
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.50      # INCREASED: Filter out robot body more aggressively
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.50      # INCREASED: Ignore readings within robot footprint
+          inf_is_valid: false
+          #expected_update_rate: 10.0
+          observation_persistence: 0.0  # REDUCED - clear obstacles immediately
+      
+      # Add denoise layer configuration
+      denoise_layer:
+        plugin: "nav2_costmap_2d::DenoiseLayer"
+        enabled: true
+        minimal_group_size: 12        # More aggressive for local costmap
+        group_connectivity_type: 8
+      
+      
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0        # Steep gradient near obstacles
+        inflation_radius: 0.4           # Just slightly > inscribed radius (0.38) for narrow aisles
+
+      always_send_full_costmap: true
+      
+
+# --------------------------------------------------------------------------------
+# COMPONENT 7: VELOCITY SMOOTHER
+# Smooths velocity commands - OPTIMIZED FOR SWERVE DRIVE
+# --------------------------------------------------------------------------------
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 10.0       # FIXED: Match controller_frequency to prevent oscillation
+    scale_velocities: false         # Don't scale - let MPPI handle optimization
+    feedback: "OPEN_LOOP"
+    max_velocity: 
+      - 1.0                         # vx_max - MATCHED to reduced MPPI limits
+      - 1.0                         # vy_max - MATCHED to reduced MPPI limits
+      - 1.5                         # wz_max - MATCHED to reduced MPPI limits
+    min_velocity: 
+      - -1.0                        # vx_min - MATCHED to reduced MPPI limits
+      - -1.0                        # vy_min - MATCHED to reduced MPPI limits
+      - -1.5                        # wz_min - MATCHED to reduced MPPI limits
+    max_accel: 
+      - 1.5                         # ax_max - MATCHED to reduced MPPI limits
+      - 1.5                         # ay_max - MATCHED to reduced MPPI limits
+      - 3.0                         # az_max - MATCHED to reduced MPPI limits
+    max_decel: 
+      - -1.5                        # ax_min - MATCHED to reduced MPPI limits
+      - -1.5                        # ay_min - MATCHED to reduced MPPI limits
+      - -3.0                        # az_min - MATCHED to reduced MPPI limits
+    odom_topic: "/odom"
+    odom_duration: 0.1
+    deadband_velocity: 
+      - 0.05                          # INCREASED: Filter micro-commands causing vibration
+      - 0.05                          # INCREASED: Filter micro-commands causing vibration
+      - 0.05                          # INCREASED: Filter micro-commands causing vibration
+    velocity_timeout: 1.0
+
+# --------------------------------------------------------------------------------
+# COMPONENT 8: COLLISION MONITOR
+# Safety layer to stop robot on imminent collision.
+# --------------------------------------------------------------------------------
+collision_monitor:
+  ros__parameters:
+    enabled: True
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    transform_tolerance: 2.0
+    source_timeout: 0.5
+    stop_pub_timeout: 0.2
+    enable_stamped_cmd_vel: True
+    polygons: ["PolygonStop", "PolygonSlow"]
+    PolygonStop:
+      type: "polygon"
+      # Tight stop zone - very close to robot
+      points: [0.100, 0.220, -0.080, 0.220, -0.280, 0.070, -0.280, -0.070, -0.080, -0.220, 0.100, -0.220]
+      action_type: "stop"
+      min_points: 12                       # Need more points to confirm real obstacle
+      visualize: True
+      polygon_pub_topic: "polygon_stop"
+    PolygonSlow:
+      type: "polygon"
+      # Moderate slowdown zone
+      points: [0.180, 0.300, -0.120, 0.300, -0.350, 0.110, -0.350, -0.110, -0.120, -0.300, 0.180, -0.300]
+      action_type: "slowdown"
+      min_points: 8                        # Need more points - less false positives
+      slowdown_ratio: 0.7                  # Only slow to 70% - was 40%
+      visualize: True
+      polygon_pub_topic: "polygon_slowdown"
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "scan"

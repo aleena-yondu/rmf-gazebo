@@ -1,0 +1,11 @@
+# Number of steps to run inference for, inference millisecond sleep, 
+int64 steps
+int64 sleep
+string action_type  # "pick" or "place"
+string tote_name  # Optional: tote name for place actions (e.g., "0_1")
+---
+# Result
+bool success
+---
+# Feedback
+string message

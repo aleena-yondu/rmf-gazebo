@@ -1,0 +1,107 @@
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ROS Parameters
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /scan
+    mode: localization
+
+    # slam_toolbox publishes its rasterised occupancy grid on /map directly.
+    # The costmap StaticLayer subscribes to it from here; there is no
+    # dedicated nav2_map_server in navigation.launch.py at the moment, so
+    # this publisher IS the global /map source for Nav2.
+    # MapMetaData auto-derives as `<map_name>_metadata`.
+    map_name: /map
+
+    # if you'd like to start localizing on bringup in a map and pose
+    # map_file_name: Will be set by the launch file
+    map_start_pose: [0.0, 0.0, 0.0]
+    use_map_saver: false
+
+    debug_logging: false
+    throttle_scans: 1 # Process every scan - needed for stable localization
+    transform_publish_period: 0.0333 # 10Hz TF publishing - smoother for fast motion
+    map_update_interval: 999999.0  # Disabled — slam_toolbox publishes /map once at startup. See livox YAML for full rationale.
+
+    # Match sensor capabilities (MID360 min range is 0.3m)
+    # Set slightly higher than sensor min to avoid warnings and invalid points
+    min_laser_range: 0.35
+    max_laser_range: 10.0
+
+    # Responsive updates for rotation - lower thresholds to update during pure rotation
+    minimum_time_interval: 0.0333 # 10Hz max update rate (faster for rotation tracking)
+    minimum_travel_distance: 0.01 # 2cm movement threshold (very sensitive)
+    minimum_travel_heading: 0.0017 # ~0.1 degrees rotation threshold (more sensitive)
+
+    # Large timeout to handle processing delays during navigation
+    transform_timeout: 0.3 # Tighter tolerance for real-time performance
+    tf_buffer_duration: 10.0 # Reduced buffer (less memory, faster lookups)
+    stack_size_to_use: 40000000
+    scan_queue_size: 10 # Smaller queue - process scans faster or drop them
+
+    # General Parameters
+    use_scan_matching: true
+    use_scan_barycenter: true
+
+    ## Attempt to reduce frames jump
+    # scan_buffer_size: 30 # Reduced buffer for localization mode (less memory/CPU)
+    scan_buffer_size: 10
+
+    scan_buffer_maximum_scan_distance: 10.0
+
+    # IMPORTANT: Stricter thresholds for large maps to avoid false positives
+    link_match_minimum_response_fine: 0.1 # Stricter (was 0.07)
+    link_scan_maximum_distance: 5.0 # Increased tolerance for larger areas (was 2.0)
+
+    do_loop_closing: false
+    loop_match_minimum_chain_size: 3
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.8
+    loop_match_minimum_response_fine: 0.1
+
+    # Correlation Parameters - balance between stability and recovery
+    correlation_search_space_dimension: 0.8
+    correlation_search_space_resolution: 0.05 # Must be >= map resolution; finer values cause probability grid crash
+    correlation_search_space_smear_deviation: 0.03
+
+    # Loop Closure Parameters (disabled but kept for reference)
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+    loop_search_maximum_distance: 20.0
+
+    # Scan Matcher Parameters - PRIORITIZE rotation correction
+    # Lower distance penalty, higher angle penalty to better track pure rotation
+    distance_variance_penalty: 0.5 # Less strict on translation (allow drift correction)
+    angle_variance_penalty: 0.6 # More strict on rotation (prioritize angular accuracy)
+
+    fine_search_angle_offset: 0.00087 # ~0.05° for very fine angular tuning
+    # Wider angular search to catch rotation drift during pure rotation
+
+    ## Attempt to reduce frames jump
+    # coarse_search_angle_offset: 0.524 # ~30° search range - catch larger rotation errors
+    # coarse_angle_resolution: 0.0262 # ~1.5° steps - finer coarse search
+    coarse_search_angle_offset: 0.1     # ~5.7°                                                    
+    coarse_angle_resolution: 0.0175      # 1° steps decrease size of candidates
+
+    minimum_angle_penalty: 0.8 # Lower penalty - more lenient angle matching during rotation
+    minimum_distance_penalty: 0.8 # Higher penalty - prioritize good translation match
+    use_response_expansion: true
+    min_pass_through: 2
+    #
+    occupancy_threshold: 0.1
+
+    # SLAM Toolbox map→odom TF timestemp to current ts
+    # scan matching delay makes tf ts behind.
+    restamp_tf: true
+    #
+    # scan matching ts.
+    # restamp_tf: false

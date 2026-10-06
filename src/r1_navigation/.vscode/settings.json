@@ -1,0 +1,73 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.indexing": false,
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "python.analysis.typeCheckingMode": "off",
+    "cmake.configureOnOpen": false,
+    "cmake.sourceDirectory": "${workspaceFolder}/Yondu_Nav",
+    "cmake.buildDirectory": "${workspaceFolder}/Yondu_Nav/build",
+    "cmake.parallelJobs": 1,
+    "cmake.buildArgs": ["-j", "1"],
+    "files.associations": {
+        "map": "cpp"
+    },
+    "files.watcherExclude": {
+        "**/.git/**": true,
+        "**/.svn/**": true,
+        "**/.hg/**": true,
+        "**/build/**": true,
+        "**/install/**": true,
+        "**/log/**": true,
+        "Livox-SDK2/3rdparty/**": true,
+        "driver_ws/build/**": true,
+        "isaac_ros-dev/build/**": true,
+        "Yondu_Nav/build/**": true
+    },
+    "search.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/build/**": true,
+        "**/install/**": true,
+        "**/log/**": true,
+        "Livox-SDK2/3rdparty/**": true,
+        "driver_ws/build/**": true,
+        "isaac_ros-dev/build/**": true,
+        "Yondu_Nav/build/**": true
+    },
+    "C_Cpp.errorSquiggles": "disabled",
+    "C_Cpp.workspaceParsingPriority": "low",
+    "C_Cpp.intelliSenseEngine": "Tag Parser",
+    "C_Cpp.codeAnalysis.enabled": false,
+    "C_Cpp.loggingLevel": "Error",
+    "C_Cpp.files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/build/**": true,
+        "**/install/**": true,
+        "**/log/**": true,
+        "Livox-SDK2/3rdparty/**": true
+    },
+    "editor.semanticHighlighting.enabled": false,
+    "git.autorefresh": false,
+    "git.autofetch": false,
+    "telemetry.telemetryLevel": "off",
+    "workbench.enableExperiments": false,
+    "extensions.autoCheckUpdates": false,
+    "extensions.autoUpdate": false,
+    "clangd.arguments": [
+        "--background-index=false",
+        "--clang-tidy=false",
+        "--completion-style=detailed",
+        "--header-insertion=never",
+        "--limit-results=20"
+    ]
+}

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Behavior Tree: Cycle Height Servo
+
+  Servos the arms and torso through a list of heights, advancing to the next
+  height each time the tree is triggered.  No navigation stack is required.
+
+  Usage:
+    ros2 launch r1_nav_cpp cycle_height_servo.launch.py
+
+  Heights are hardcoded in cycle_height_servo_action.hpp (CYCLE_HEIGHTS).
+  Rebuild after editing.
+
+  Trigger:
+    ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{}"
+-->
+
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+
+  <BehaviorTree ID="MainTree">
+    <Sequence name="CycleHeightSequence">
+
+      <DebugPrint debug_message="CycleHeightServo: starting next height"/>
+
+      <CycleHeightServo
+        server_timeout="15.0"
+        joint_tolerance="0.1"/>
+
+      <DebugPrint debug_message="CycleHeightServo: servo complete"/>
+
+    </Sequence>
+  </BehaviorTree>
+
+  <TreeNodesModel>
+
+    <Action ID="CycleHeightServo"
+            help="Cycles through hardcoded heights (see CYCLE_HEIGHTS), servoing arms and torso to the next one each invocation">
+      <input_port name="server_timeout" type="double" default="10.0">
+        Timeout per servo operation (s)
+      </input_port>
+      <input_port name="joint_tolerance" type="double" default="0.1">
+        Joint convergence tolerance (rad)
+      </input_port>
+    </Action>
+
+    <Action ID="DebugPrint" help="Logs debug messages">
+      <input_port name="debug_message" type="std::string">Message to log</input_port>
+      <input_port name="print_pose" type="geometry_msgs::msg::PoseStamped">Optional pose</input_port>
+    </Action>
+
+  </TreeNodesModel>
+
+</root>

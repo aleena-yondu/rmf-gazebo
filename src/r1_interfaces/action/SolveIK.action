@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Goal
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Ordered sequence of end-effector poses to solve.
+# Poses are processed in order; failure on any pose aborts the entire goal.
+geometry_msgs/Pose[] target_ee_poses
+
+# Target link for IK solving (e.g. "right_gripper_link", "left_gripper_link").
+# The node determines which arm and planning groups to use based on this link.
+string target_link
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Result  (sent once when the goal terminates)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# True only if every pose in the goal was solved and its trajectory published.
+bool success
+
+# Human-readable failure description. Empty when success=true.
+string error_message
+
+# Planning group used for each pose, in goal order.
+# Length equals the number of poses that were successfully planned before any
+# failure.
+# Trajectories themselves are published directly to /motion_target/target_joint_state_*
+# and are not carried in this result.
+string[] groups_used
+
+---
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Feedback  (streamed throughout execution)
+#
+# Two modes are multiplexed on the same message, distinguished by
+# trajectory_ready:
+#
+#   trajectory_ready = false  →  planning in progress for this pose.
+#     Sent on each escalation attempt while the pipeline tries each group.
+#     Meaningful fields: pose_index, total_poses, current_group,
+#                        attempt_number, status
+#
+#   trajectory_ready = true   →  planning succeeded for this pose.
+#     Sent exactly once per pose after IK succeeds and the trajectory has
+#     been published to /motion_target/target_joint_state_*.
+#     Meaningful fields: pose_index, total_poses, group_used
+# ─────────────────────────────────────────────────────────────────────────────
+uint32 pose_index
+uint32 total_poses
+string current_group
+uint32 attempt_number
+string status
+bool trajectory_ready
+string group_used

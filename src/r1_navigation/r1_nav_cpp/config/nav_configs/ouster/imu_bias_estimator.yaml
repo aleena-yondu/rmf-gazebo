@@ -1,0 +1,76 @@
+# Configuration for online_imu_bias_estimator node
+/**:
+  ros__parameters:
+    # Topic configuration
+    input_topic: "/ouster/imu"
+    output_topic: "/imu/data_bias_corrected"
+    odom_topic: "/synchro_odom" # Set to empty string "" to disable odometry gating
+
+    # Stationarity detection thresholds
+    lin_stationary_thresh: 0.01 # m/s - linear velocity threshold
+    ang_stationary_thresh: 0.02 # rad/s - angular velocity threshold (tightened from 0.05 to exclude deceleration vibration)
+
+    # Initial bias seed — measured from /ouster/imu z-axis average at rest
+    # Used as the bias value before accumulation completes (robot must be still at startup).
+    initial_gyro_bias: [0.0, 0.0, -0.00844]  # rad/s [x, y, z] — measured 2026-03-18 (updated from -0.009294)
+
+    # Stationarity hysteresis: require this many consecutive stationary IMU msgs
+    # before batch accumulation starts (~0.8s at 100Hz absorbs odom-lag + settling vibration).
+    min_stationary_count: 80
+
+    # Startup warmup: average this many IMU samples at boot to seed initial bias.
+    # Motion during warmup corrupts the estimate — keep robot still at startup.
+    warmup_samples: 500
+
+    # Batch bias update: accumulate this many confirmed-stationary samples,
+    # then compute their mean and blend into gyro_bias_z.
+    # 200 = 2s at 100Hz → σ_estimate = 0.01/√200 ≈ 0.0007 rad/s (vs ~0.002 EMA drift).
+    # Motion resets the accumulator (partial batches are discarded).
+    bias_update_samples: 200
+
+    # Blend factor when applying batch mean: 1.0=replace fully, 0.5=average with old bias.
+    # 0.5 provides safety against occasional outlier batches.
+    bias_update_alpha: 0.5
+
+    # Stationarity detection
+    use_z_only_stationary: true
+
+    # Dynamic bias model during rotation.
+    # Options: "none" | "linear" | "quadratic"
+    #   none      : no dynamic correction while moving
+    #   linear    : b(ω) = linear_b0 + linear_k·ω
+    #   quadratic : b(ω) = quad_b0 + quad_k·ω + quad_k2·ω²  ← recommended
+    # NOTE: linear and quadratic have SEPARATE parameter sets — their b0/k values
+    #       come from different fits and are NOT interchangeable.
+    dynamic_bias_model: "linear"
+
+    # Calibrated 2026-03-18 via calibrate_rotation_bias_multi.py
+    # 10 bags × 5 speeds (±0.3/0.5/0.7/1.0/1.2 rad/s), KISS-ICP reference, n=12667
+    # stationary_bias_z=-0.00844, quad R²=0.38 (quad_res MAE < 0.1 mrad/s — model fits means well)
+    # Run: python3 scripts/calibrate_rotation_bias_multi.py --bag-dir <dir> --stationary-bias-z -0.00844 --save result.json
+
+    # Linear model parameters  b(ω) = linear_b0 + linear_k·ω  (R²=0.14 — poor, not recommended)
+    linear_b0: 0.0
+    linear_k:  -0.007139
+
+    # Quadratic model parameters  b(ω) = quad_b0 + quad_k·ω + quad_k2·ω²  (R²=0.38 — use this)
+    # k  captures CW/CCW asymmetry (grows linearly with ω)
+    # k2 captures symmetric speed-dependent bias (centripetal g-sensitivity)
+    # Example
+    # quad_b0:  0.000935   # offset @ ω=0   (rad/s)
+    # quad_k:  -0.006787   # linear term    (CW-CCW asymmetry)
+    # quad_k2: -0.014978   # quadratic term (centripetal g-sensitivity)
+
+    # With descrew in KISS-ICP. Accel changing -> residual more stable.
+    quad_b0:  0.000265
+    quad_k:  -0.007723
+    quad_k2: -0.000618
+
+    # Output low-pass filter on corrected wz (2nd-order Butterworth IIR, -40dB/decade).
+    # Reduces angle random walk at the cost of phase lag (~90° at fc).
+    # Recommended range: 20.0–30.0 Hz.
+    # Set to 0.0 to disable.
+    lpf_cutoff_hz: 20.0
+
+    # NOTED
+    # Temperature effect on the bias cannot be estimated yet.

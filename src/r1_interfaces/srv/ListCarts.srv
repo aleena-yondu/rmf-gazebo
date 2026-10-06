@@ -1,0 +1,19 @@
+# Request - List all carts in the system
+# (no input parameters needed)
+---
+# Response
+bool success
+string message
+string[] cart_barcodes      # List of cart barcodes
+string[] cart_statuses      # Corresponding statuses
+int32[] total_totes         # Corresponding tote counts
+int32[] available_totes     # Corresponding available tote counts
+# Per-cart effective ``order_status_filter`` for each cart in
+# ``cart_barcodes`` (same index). Resolved through
+# ``_resolve_cart_order_status_filter`` on the WMS node so legacy carts
+# (created before the per-cart filter feature shipped) surface the WMS
+# node default rather than an empty string. The GUI uses this so the
+# cart-list / cart-select dialog can show operators which filter each
+# cart is fetching against. Additive field -- older clients that don't
+# read this array continue to work unchanged.
+string[] order_status_filters
