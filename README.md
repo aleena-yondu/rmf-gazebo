@@ -1,4 +1,3 @@
 ```
-ros2 launch r1_sim gpal_sim.launch.py
-
+ros2 launch r1_sim goal_sim_ground_truth.launch.py
 ```
