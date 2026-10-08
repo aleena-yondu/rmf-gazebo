@@ -4,3 +4,9 @@ log/
 external/
 **/__pycache__/
 *.pyc
+/frames_*.gv
+/frames_*.pdf
+/test.data
+/test.pgm
+/test.posegraph
+/test.yaml
