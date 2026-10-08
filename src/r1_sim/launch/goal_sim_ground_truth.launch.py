@@ -83,7 +83,7 @@ def generate_launch_description():
     started. lifecycle_manager_navigation activates map_server.
 
     Usage:
-        ros2 launch r1_sim gpal_sim_ground_truth.launch.py
+        ros2 launch r1_sim goal_sim_ground_truth.launch.py
     """
 
     pkg_r1_sim = get_package_share_directory('r1_sim')
@@ -134,7 +134,7 @@ def generate_launch_description():
 
     startup_banner = LogInfo(
         msg='\n' + '=' * 70 + '\n'
-        + '  GPAL SIMULATION - ground truth REP-105\n'
+        + '  GOAL SIMULATION - ground truth REP-105\n'
         + '  Map x range: -21.43 to -2.53\n'
         + '  Map y range:  16.51 to 36.46\n'
         + '  Pick a free cell inside that box, then:\n'
@@ -226,7 +226,6 @@ def generate_launch_description():
                 ', z: 0.0}, orientation: {w: 1.0}}}}',
             ],
             '--feedback',
-            '--ros-args', '-p', 'use_sim_time:=true',
         ],
         output='screen',
     )

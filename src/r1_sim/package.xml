@@ -3,7 +3,7 @@
 <package format="3">
   <name>r1_sim</name>
   <version>0.1.0</version>
-  <description>Nav2-compatible simulated robot for GPAL testing in yondu_warehouse</description>
+  <description>Nav2-compatible simulated robot for GOAL testing in yondu_warehouse</description>
   <maintainer email="yondu@todo.todo">yondu</maintainer>
   <license>Apache-2.0</license>
 

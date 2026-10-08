@@ -1,7 +1,7 @@
 # ==================================================================================================
-#                       Nav2 Parameters for GPAL Simulation
+#                       Nav2 Parameters for GOAL Simulation
 #
-# Adapted from nav2_gpal_params.yaml for a simulated diff-drive robot.
+# Adapted from nav2_goal_params.yaml for a simulated diff-drive robot.
 # Key differences from real robot config:
 #   - use_sim_time: true
 #   - Circular footprint (0.25m radius) matching sim_robot model

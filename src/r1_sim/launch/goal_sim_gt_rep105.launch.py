@@ -21,7 +21,7 @@ def generate_launch_description():
     odom -> base_link. AMCL and slam_toolbox are not started.
 
     Usage:
-        ros2 launch r1_sim gpal_sim_gt_rep105.launch.py
+        ros2 launch r1_sim goal_sim_gt_rep105.launch.py
     """
 
     pkg_r1_sim = get_package_share_directory('r1_sim')
@@ -61,7 +61,7 @@ def generate_launch_description():
 
     startup_banner = LogInfo(
         msg='\n' + '=' * 70 + '\n'
-        + '  GPAL SIMULATION - REP-105 ground truth\n'
+        + '  GOAL SIMULATION - REP-105 ground truth\n'
         + '  static map -> odom (identity)\n'
         + '  DiffDrive odom -> base_link on /model/sim_robot/tf\n'
         + '  No AMCL, no slam_toolbox, no second pose plugin.\n'

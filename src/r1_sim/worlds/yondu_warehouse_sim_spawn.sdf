@@ -209,7 +209,7 @@
       <pose>0 0 0.0 0 0 0</pose>
     </include>
 
-    <!-- sim_robot is spawned by gpal_sim_ground_truth.launch.py -->
+    <!-- sim_robot is spawned by goal_sim_ground_truth.launch.py -->
 
   </world>
 </sdf>

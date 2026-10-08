@@ -16,9 +16,9 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     """
-    GPAL Simulation Launch File
+    GOAL Simulation Launch File
 
-    Launches the complete navigation stack for testing gpal_random_navigator
+    Launches the complete navigation stack for testing goal_random_navigator
     in the yondu_warehouse Ignition Gazebo world.
 
     Components:
@@ -28,14 +28,14 @@ def generate_launch_description():
     4. AMCL (map -> odom from the occupancy grid; no posegraph on disk)
     5. Map Server (publishes /map OccupancyGrid for costmaps)
     6. Nav2 navigation stack (DiffDrive MPPI controller)
-    7. GPAL Random Navigator
+    7. GOAL Random Navigator
     8. RViz2 visualization
 
     Usage:
-        ros2 launch r1_sim gpal_sim.launch.py
+        ros2 launch r1_sim goal_sim.launch.py
 
     Then start navigation with:
-        ros2 service call /gpal/navigate r1_interfaces/srv/GpalNavigate "{command: 'start'}"
+        ros2 service call /goal/navigate r1_interfaces/srv/GoalNavigate "{command: 'start'}"
     """
 
     pkg_r1_sim = get_package_share_directory('r1_sim')
@@ -109,13 +109,13 @@ def generate_launch_description():
     # === Startup Banner ===
     startup_banner = LogInfo(
         msg='\n' + '=' * 70 + '\n'
-        + '  GPAL SIMULATION - yondu_warehouse\n'
+        + '  GOAL SIMULATION - yondu_warehouse\n'
         + '  Robot: sim_robot (diff-drive + lidar)\n'
         + '  Localization: map_server + AMCL (yondu_simmap)\n'
         + '=' * 70 + '\n'
         + '  Gazebo starts unpaused (-r).\n'
         + '  In RViz, set the 2D Pose Estimate, then use Nav2 Goal.\n'
-        + '    ros2 service call /gpal/navigate r1_interfaces/srv/GpalNavigate '
+        + '    ros2 service call /goal/navigate r1_interfaces/srv/GoalNavigate '
         + '"{command: \'start\'}"\n'
         + '=' * 70
     )
@@ -214,12 +214,12 @@ def generate_launch_description():
         actions=[nav2_navigation_launch]
     )
 
-    # === 7. GPAL RANDOM NAVIGATOR ===
+    # === 7. GOAL RANDOM NAVIGATOR ===
     # Not built in r1_nav_cpp. Send goals from RViz (Nav2 Goal) instead.
-    # gpal_navigator_node = Node(
+    # goal_navigator_node = Node(
     #     package='r1_nav_cpp',
-    #     executable='gpal_random_navigator',
-    #     name='gpal_random_navigator',
+    #     executable='goal_random_navigator',
+    #     name='goal_random_navigator',
     #     output='screen',
     #     parameters=[{
     #         'warehouse_config': LaunchConfiguration('warehouse_config'),
@@ -229,9 +229,9 @@ def generate_launch_description():
     #     }]
     # )
     #
-    # delayed_gpal_navigator = TimerAction(
+    # delayed_goal_navigator = TimerAction(
     #     period=12.0,
-    #     actions=[gpal_navigator_node]
+    #     actions=[goal_navigator_node]
     # )
 
     # === 8. RVIZ2 ===
@@ -270,7 +270,7 @@ def generate_launch_description():
         map_server_node,
         amcl_node,
         delayed_nav2,
-        # delayed_gpal_navigator,
+        # delayed_goal_navigator,
 
         # RViz2
         rviz_node,

@@ -6,7 +6,7 @@ distance-transform cost: how far those vertices sit from occupied pixels.
 
     python3 src/align_map_to_gazebo.py
 
-gpal_sim_ground_truth.launch.py calls align() and publishes the result.
+goal_sim_ground_truth.launch.py calls align() and publishes the result.
 """
 
 from __future__ import annotations
@@ -25,6 +25,9 @@ WALL_OBJ = Path(
 )
 # Link pose of wall_1 in models/yondu_warehouse_yondu/model.sdf.
 WALL_POSE_XY = (5.744842791026957, -15.83881460376728)
+# Spawn yaw is 0, so the robot faces gazebo +X and its left is +Y.
+# The wall centroid sits against the right-hand corridor wall.
+LEFT_OFFSET_M = 1.0
 
 
 @dataclass
@@ -120,7 +123,7 @@ def align() -> Alignment:
     dist_map = cv2.distanceTransform((1 - wall_mask) * 255, cv2.DIST_L2, 5)
 
     gazebo = _gazebo_points()
-    spawn = gazebo.mean(axis=0)
+    spawn = gazebo.mean(axis=0) + np.array([0.0, LEFT_OFFSET_M])
     gazebo_yaw_deg = _rect_angle_deg(gazebo)
 
     wall_y, wall_x = np.nonzero(wall_mask)
@@ -188,7 +191,8 @@ def align() -> Alignment:
         f'  locked yaw {math.degrees(yaw):.2f} deg ({yaw:.4f} rad)',
         f'  rigid translation T ({translation[0]:.2f}, {translation[1]:.2f})',
         f'  mean distance of wall vertices to map walls: {cost:.2f} px',
-        f'  spawn (wall center) ({spawn[0]:.2f}, {spawn[1]:.2f}, 0.10)',
+        f'  spawn (wall center, {LEFT_OFFSET_M:.1f} m left) '
+        f'({spawn[0]:.2f}, {spawn[1]:.2f}, 0.10)',
         f'  map -> odom ({map_robot[0]:.2f}, {map_robot[1]:.2f}, 0.10) '
         f'yaw {yaw:.4f}',
     ])
