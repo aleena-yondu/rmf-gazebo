@@ -209,7 +209,15 @@
       <pose>0 0 0.0 0 0 0</pose>
     </include>
 
-    <!-- sim_robot is spawned by goal_sim_ground_truth.launch.py -->
+    <!-- Loaded with the world so the GUI entity tree and 3D view include it.
+         A model created later by ros_gz_sim create exists on the server
+         (gz model --list) but this GUI does not add it to the tree.
+         Pose matches align_map_to_gazebo.py: wall center plus 1 m left. -->
+    <include>
+      <name>sim_robot</name>
+      <uri>model://sim_robot</uri>
+      <pose>16.65 -8.99 0.10 0 0 0</pose>
+    </include>
 
   </world>
 </sdf>

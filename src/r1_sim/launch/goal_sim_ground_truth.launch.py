@@ -49,26 +49,6 @@ def _gazebo(context, *args, **kwargs):
 
 def _spawn_and_map_tf(context, *args, **kwargs):
     fit = _load_alignment()
-    sim_models_dir = os.path.join(
-        get_package_share_directory('r1_sim'), 'models')
-    spawn_sim_robot = Node(
-        package='ros_gz_sim',
-        executable='create',
-        name='spawn_sim_robot',
-        output='screen',
-        arguments=[
-            '-world', 'sim_world',
-            '-name', 'sim_robot',
-            '-file', os.path.join(sim_models_dir, 'sim_robot', 'model.sdf'),
-            '-x', f'{fit.spawn_x:.2f}',
-            '-y', f'{fit.spawn_y:.2f}',
-            '-z', f'{fit.spawn_z:.2f}',
-            '-R', '0.0',
-            '-P', '0.0',
-            '-Y', '0.0',
-        ],
-        parameters=[{'use_sim_time': True}],
-    )
     static_tf_map_to_odom = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
@@ -88,7 +68,6 @@ def _spawn_and_map_tf(context, *args, **kwargs):
     )
     return [
         LogInfo(msg='\n' + fit.report),
-        TimerAction(period=3.0, actions=[spawn_sim_robot]),
         static_tf_map_to_odom,
     ]
 
@@ -123,7 +102,7 @@ def generate_launch_description():
         'world',
         default_value=os.path.join(
             pkg_r1_sim, 'worlds', 'yondu_warehouse_sim_spawn.sdf'),
-        description='Warehouse world without sim_robot. create spawns the robot.'
+        description='Warehouse world. sim_robot is included at the aligned spawn.'
     )
     declare_rviz_config_arg = DeclareLaunchArgument(
         'rviz_config',
