@@ -55,7 +55,6 @@ RUN_ARGS=(
     --net=host
     --ipc=host
     -e "ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
-    -e "ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY:-0}"
 )
 
 MODE="headless"

@@ -8,6 +8,7 @@ install(DIRECTORY
   worlds
   launch
   config
+  maps
   rviz
   src
   DESTINATION share/${PROJECT_NAME}

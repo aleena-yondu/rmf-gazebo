@@ -4,8 +4,10 @@ source /opt/ros/jazzy/setup.bash
 source /ws/install/setup.bash
 
 # Same ROS domain as the fleet manager. Host networking makes the topics visible.
+# Leave discovery at the Jazzy default (subnet). ROS_LOCALHOST_ONLY is deprecated
+# and prints a warning from every node even when set to 0.
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
-export ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-0}"
+unset ROS_LOCALHOST_ONLY
 
 mode="${1:-headless}"
 if [[ "${mode}" == "headless" || "${mode}" == "gui" ]]; then
