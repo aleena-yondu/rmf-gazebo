@@ -1,0 +1,21 @@
+services:
+  fleet:
+    image: r1-sim:jazzy
+    container_name: gazebo_sim
+    network_mode: host
+    ipc: host
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      ROS_LOCALHOST_ONLY: ${ROS_LOCALHOST_ONLY:-0}
+    command: ["headless"]
+  gui:
+    image: r1-sim:jazzy
+    network_mode: host
+    ipc: host
+    command: ["gui"]
+    environment:
+      DISPLAY: ${DISPLAY}
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix

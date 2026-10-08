@@ -19,9 +19,10 @@ import cv2
 import numpy as np
 import yaml
 
-MAP_YAML = Path('/home/yondu/yondu_fleet_ws/src/r1_nav_cpp/maps/yondu_simmap.yaml')
-WALL_OBJ = Path(
-    '/home/yondu/yondu_fleet_ws/src/r1_sim/models/yondu_warehouse_yondu/meshes/wall_1.obj'
+_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+MAP_YAML = _PACKAGE_ROOT / 'maps' / 'yondu_simmap.yaml'
+WALL_OBJ = (
+    _PACKAGE_ROOT / 'models' / 'yondu_warehouse_yondu' / 'meshes' / 'wall_1.obj'
 )
 # Link pose of wall_1 in models/yondu_warehouse_yondu/model.sdf.
 WALL_POSE_XY = (5.744842791026957, -15.83881460376728)

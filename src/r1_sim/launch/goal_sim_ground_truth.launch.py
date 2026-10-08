@@ -12,6 +12,7 @@ from launch.actions import (
     TimerAction,
     LogInfo,
 )
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -28,9 +29,28 @@ def _load_alignment():
     return module.align()
 
 
+def _gazebo(context, *args, **kwargs):
+    world = LaunchConfiguration('world').perform(context)
+    headless = LaunchConfiguration('headless').perform(context)
+    # -s skips the GUI. --headless-rendering keeps the lidar camera running.
+    prefix = '-s -r --headless-rendering ' if headless == 'true' else '-r '
+    return [
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(
+                    get_package_share_directory('ros_gz_sim'),
+                    'launch', 'gz_sim.launch.py'
+                )
+            ),
+            launch_arguments={'gz_args': prefix + world}.items(),
+        )
+    ]
+
+
 def _spawn_and_map_tf(context, *args, **kwargs):
     fit = _load_alignment()
-    sim_models_dir = '/home/yondu/yondu_fleet_ws/src/r1_sim/models'
+    sim_models_dir = os.path.join(
+        get_package_share_directory('r1_sim'), 'models')
     spawn_sim_robot = Node(
         package='ros_gz_sim',
         executable='create',
@@ -87,19 +107,14 @@ def generate_launch_description():
     """
 
     pkg_r1_sim = get_package_share_directory('r1_sim')
-    warehouse_models_dir = os.path.join(
-        get_package_share_directory('rmf_traffic_editor_test_maps'),
-        'maps', 'yondu_warehouse', 'models'
-    )
-    sim_models_dir = '/home/yondu/yondu_fleet_ws/src/r1_sim/models'
-    sim_map_yaml = '/home/yondu/yondu_fleet_ws/src/r1_nav_cpp/maps/yondu_simmap.yaml'
+    sim_models_dir = os.path.join(pkg_r1_sim, 'models')
+    sim_map_yaml = os.path.join(pkg_r1_sim, 'maps', 'yondu_simmap.yaml')
     nav2_params_file = os.path.join(pkg_r1_sim, 'config', 'nav2_sim_params_gt.yaml')
 
     gz_resource_path = SetEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
         ':'.join([
             sim_models_dir,
-            warehouse_models_dir,
             os.environ.get('GZ_SIM_RESOURCE_PATH', ''),
         ])
     )
@@ -131,6 +146,21 @@ def generate_launch_description():
         default_value='26.5',
         description='Goal y in the map frame. Valid map y is 16.51 to 36.46.'
     )
+    declare_headless_arg = DeclareLaunchArgument(
+        'headless',
+        default_value='false',
+        description='Run Gazebo Sim server only, with lidar rendering and no GUI.'
+    )
+    declare_use_rviz_arg = DeclareLaunchArgument(
+        'use_rviz',
+        default_value='true',
+        description='Open RViz. Set false when there is no display.'
+    )
+    declare_send_test_goal_arg = DeclareLaunchArgument(
+        'send_test_goal',
+        default_value='true',
+        description='Send goal_x/goal_y. Set false when the fleet manager sends NavigateToPose.'
+    )
 
     startup_banner = LogInfo(
         msg='\n' + '=' * 70 + '\n'
@@ -141,21 +171,6 @@ def generate_launch_description():
         + '    goal_x:=-8.5 goal_y:=26.5\n'
         + '  Open-RMF should send NavigateToPose itself. These args are for a test goal.\n'
         + '=' * 70
-    )
-
-    # gz_sim.launch.py does LaunchConfiguration('gz_args').perform(), which
-    # concatenates a list of substitutions. PathJoinSubstitution uses
-    # os.path.join, and an absolute world path would discard the '-r ' prefix.
-    ign_gazebo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory('ros_gz_sim'),
-                'launch', 'gz_sim.launch.py'
-            )
-        ),
-        launch_arguments={
-            'gz_args': ['-r ', LaunchConfiguration('world')],
-        }.items()
     )
 
     ros_gz_bridge = Node(
@@ -238,13 +253,20 @@ def generate_launch_description():
         declare_map_yaml_arg,
         declare_goal_x_arg,
         declare_goal_y_arg,
-        ign_gazebo,
+        declare_headless_arg,
+        declare_use_rviz_arg,
+        declare_send_test_goal_arg,
+        OpaqueFunction(function=_gazebo),
         OpaqueFunction(function=_spawn_and_map_tf),
         ros_gz_bridge,
         static_tf_lidar,
         map_server_node,
         TimerAction(period=8.0, actions=[nav2_navigation_launch]),
-        TimerAction(period=25.0, actions=[send_goal]),
+        TimerAction(
+            period=25.0,
+            actions=[send_goal],
+            condition=IfCondition(LaunchConfiguration('send_test_goal')),
+        ),
         Node(
             package='rviz2',
             executable='rviz2',
@@ -252,5 +274,6 @@ def generate_launch_description():
             output='screen',
             arguments=['-d', LaunchConfiguration('rviz_config')],
             parameters=[{'use_sim_time': True}],
+            condition=IfCondition(LaunchConfiguration('use_rviz')),
         ),
     ])
