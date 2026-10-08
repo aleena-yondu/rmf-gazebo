@@ -63,6 +63,7 @@ if [ "$GUI" = true ]; then
     xhost +local:docker >/dev/null 2>&1 || true
     RUN_ARGS+=(
         -e "DISPLAY=${DISPLAY:-:0}"
+        -e LIBGL_ALWAYS_SOFTWARE=1
         -e QT_X11_NO_MITSHM=1
         -v /tmp/.X11-unix:/tmp/.X11-unix
     )

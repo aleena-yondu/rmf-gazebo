@@ -17,7 +17,9 @@ else
 fi
 
 if [[ "${mode}" == "gui" ]]; then
-    export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-0}"
+    # The container has no host GPU unless /dev/dri is passed. llvmpipe still
+    # draws Gazebo and RViz; leaving this at 0 produces a black window.
+    export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
     launch_args=(headless:=false use_rviz:=true)
 else
     # No window. --headless-rendering still runs the lidar camera.
