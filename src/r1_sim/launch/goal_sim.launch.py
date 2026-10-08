@@ -135,7 +135,7 @@ def generate_launch_description():
     )
 
     # === 2. ROS-GZ BRIDGE ===
-    # Single config. DiffDrive publishes gz.msgs.Pose_V on
+    # Single config. OdometryPublisher publishes gz.msgs.Pose_V on
     # /model/sim_robot/tf and gz.msgs.Odometry on /model/sim_robot/odometry.
     # Do not also bridge global /tf: that topic has no publisher and a
     # second bridge shows up as an extra /tf publisher with no data.

@@ -347,12 +347,38 @@
       <wheel_radius>0.05</wheel_radius>
       <max_linear_acceleration>0.5</max_linear_acceleration>
       <max_angular_acceleration>1.5</max_angular_acceleration>
-      <odom_publish_frequency>50</odom_publish_frequency>
+      <!-- Wheels only. OdometryPublisher below supplies odom and TF from
+           the simulated pose, so wheel slip cannot drag the lidar scan. -->
+      <odom_publish_frequency>0</odom_publish_frequency>
       <topic>cmd_vel</topic>
-      <odom_topic>/model/sim_robot/odometry</odom_topic>
-      <tf_topic>/model/sim_robot/tf</tf_topic>
+      <odom_topic>/model/sim_robot/wheel_odometry</odom_topic>
+      <tf_topic>/model/sim_robot/wheel_tf</tf_topic>
       <frame_id>odom</frame_id>
       <child_frame_id>base_link</child_frame_id>
+    </plugin>
+
+    <!-- Same pair as ros_gz_project_template diff_drive.sdf. PosePublisher
+         emits link poses. OdometryPublisher emits odom -> base_link from
+         worldPose(), not from wheel joints. -->
+    <plugin
+      filename="gz-sim-pose-publisher-system"
+      name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>true</publish_link_pose>
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <static_publisher>true</static_publisher>
+      <static_update_frequency>1</static_update_frequency>
+      <topic>/model/sim_robot/pose</topic>
+    </plugin>
+
+    <plugin
+      filename="gz-sim-odometry-publisher-system"
+      name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      <dimensions>2</dimensions>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <odom_topic>/model/sim_robot/odometry</odom_topic>
+      <tf_topic>/model/sim_robot/tf</tf_topic>
     </plugin>
 
     <!-- Joint State Publisher -->

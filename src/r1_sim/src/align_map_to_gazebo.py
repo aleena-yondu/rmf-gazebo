@@ -169,9 +169,8 @@ def align() -> Alignment:
         if trial_cost is not None and trial_cost < cost:
             cost, yaw, translation, rotated = trial_cost, trial_yaw, trial_t, trial_rot
 
-    # map_point = R * gazebo_point + T. At startup the odom frame is at the
-    # robot, so map->odom's translation is the spawn point after that same
-    # rotation, not T itself.
+    # OdometryPublisher sets odom -> base_link to the Gazebo world pose.
+    # map -> odom is therefore the rigid fit itself: map = R * gazebo + T.
     cosine, sine = math.cos(yaw), math.sin(yaw)
     map_robot = np.array([
         cosine * spawn[0] - sine * spawn[1] + translation[0],
@@ -193,15 +192,16 @@ def align() -> Alignment:
         f'  mean distance of wall vertices to map walls: {cost:.2f} px',
         f'  spawn (wall center, {LEFT_OFFSET_M:.1f} m left) '
         f'({spawn[0]:.2f}, {spawn[1]:.2f}, 0.10)',
-        f'  map -> odom ({map_robot[0]:.2f}, {map_robot[1]:.2f}, 0.10) '
+        f'  robot on map ({map_robot[0]:.2f}, {map_robot[1]:.2f})',
+        f'  map -> odom T ({translation[0]:.2f}, {translation[1]:.2f}, 0.10) '
         f'yaw {yaw:.4f}',
     ])
     return Alignment(
         spawn_x=float(spawn[0]),
         spawn_y=float(spawn[1]),
         spawn_z=0.1,
-        map_x=float(map_robot[0]),
-        map_y=float(map_robot[1]),
+        map_x=float(translation[0]),
+        map_y=float(translation[1]),
         map_z=0.1,
         map_yaw=float(yaw),
         report=report,

@@ -215,28 +215,8 @@
       <name>sim_robot</name>
       <uri>file:///home/yondu/yondu_fleet_ws/src/r1_sim/models/sim_robot/model.sdf</uri>
       <pose>18.632 -11.654 0.01 0 0 0</pose>
-      <!-- Jazzy gz-sim PosePublisher ignores frame_id, child_frame_id, and
-           tf_topic. It only publishes entity poses. OdometryPublisher is the
-           system that emits a Pose_V TF with a chosen parent frame. -->
-      <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
-        <publish_link_pose>true</publish_link_pose>
-        <publish_visual_pose>false</publish_visual_pose>
-        <publish_nested_model_pose>true</publish_nested_model_pose>
-        <use_pose_vector_msg>true</use_pose_vector_msg>
-        <static_publisher>false</static_publisher>
-        <topic>/model/sim_robot/ground_truth_pose</topic>
-        <update_frequency>50</update_frequency>
-      </plugin>
-      <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
-        <odom_frame>map</odom_frame>
-        <robot_base_frame>base_link</robot_base_frame>
-        <dimensions>2</dimensions>
-        <xyz_offset>0 0 0</xyz_offset>
-        <rpy_offset>0 0 0</rpy_offset>
-        <odom_publish_frequency>50</odom_publish_frequency>
-        <odom_topic>/model/sim_robot/ground_truth_odom</odom_topic>
-        <tf_topic>/model/sim_robot/gt_tf</tf_topic>
-      </plugin>
+      <!-- PosePublisher and OdometryPublisher live in sim_robot/model.sdf.
+           A second copy here would publish another odom -> base_link. -->
     </include>
 
   </world>

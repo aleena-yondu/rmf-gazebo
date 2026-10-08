@@ -1,9 +1,12 @@
+import importlib.util
 import os
+from pathlib import Path
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    OpaqueFunction,
     SetEnvironmentVariable,
     TimerAction,
     LogInfo,
@@ -13,12 +16,45 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
+def _load_alignment():
+    import sys
+    script = Path(__file__).resolve().parent.parent / 'src' / 'align_map_to_gazebo.py'
+    spec = importlib.util.spec_from_file_location('align_map_to_gazebo', script)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.align()
+
+
+def _map_to_odom(context, *args, **kwargs):
+    fit = _load_alignment()
+    static_map_to_odom = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='static_tf_map_to_odom',
+        output='screen',
+        arguments=[
+            '--x', f'{fit.map_x:.2f}',
+            '--y', f'{fit.map_y:.2f}',
+            '--z', f'{fit.map_z:.2f}',
+            '--roll', '0',
+            '--pitch', '0',
+            '--yaw', f'{fit.map_yaw:.4f}',
+            '--frame-id', 'map',
+            '--child-frame-id', 'odom',
+        ],
+        parameters=[{'use_sim_time': True}],
+    )
+    return [LogInfo(msg='\n' + fit.report), static_map_to_odom]
+
+
 def generate_launch_description():
     """
     Ground-truth localization that keeps the REP-105 tree.
 
-    map -> odom is a static identity. DiffDrive is the only publisher of
-    odom -> base_link. AMCL and slam_toolbox are not started.
+    OdometryPublisher writes odom -> base_link from the simulated world pose.
+    map -> odom is the rigid alignment of that world onto the saved map.
+    AMCL and slam_toolbox are not started.
 
     Usage:
         ros2 launch r1_sim goal_sim_gt_rep105.launch.py
@@ -46,7 +82,7 @@ def generate_launch_description():
         'world',
         default_value=os.path.join(
             pkg_r1_sim, 'worlds', 'yondu_warehouse_sim.sdf'),
-        description='Warehouse world. DiffDrive in model.sdf supplies odom -> base_link.'
+        description='Warehouse world. OdometryPublisher in model.sdf supplies odom -> base_link.'
     )
     declare_rviz_config_arg = DeclareLaunchArgument(
         'rviz_config',
@@ -62,8 +98,8 @@ def generate_launch_description():
     startup_banner = LogInfo(
         msg='\n' + '=' * 70 + '\n'
         + '  GOAL SIMULATION - REP-105 ground truth\n'
-        + '  static map -> odom (identity)\n'
-        + '  DiffDrive odom -> base_link on /model/sim_robot/tf\n'
+        + '  static map -> odom from the Gazebo-to-map alignment\n'
+        + '  OdometryPublisher odom -> base_link on /model/sim_robot/tf\n'
         + '  No AMCL, no slam_toolbox, no second pose plugin.\n'
         + '=' * 70
     )
@@ -97,20 +133,6 @@ def generate_launch_description():
             ('/model/sim_robot/odometry', '/odom'),
             ('/model/sim_robot/tf', '/tf'),
         ],
-    )
-
-    static_map_to_odom = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='static_tf_map_to_odom',
-        output='screen',
-        arguments=[
-            '--x', '0', '--y', '0', '--z', '0',
-            '--roll', '0', '--pitch', '0', '--yaw', '0',
-            '--frame-id', 'map',
-            '--child-frame-id', 'odom',
-        ],
-        parameters=[{'use_sim_time': True}],
     )
 
     static_tf_lidar = Node(
@@ -157,7 +179,7 @@ def generate_launch_description():
         declare_map_yaml_arg,
         ign_gazebo,
         ros_gz_bridge,
-        static_map_to_odom,
+        OpaqueFunction(function=_map_to_odom),
         static_tf_lidar,
         map_server_node,
         TimerAction(period=8.0, actions=[nav2_navigation_launch]),

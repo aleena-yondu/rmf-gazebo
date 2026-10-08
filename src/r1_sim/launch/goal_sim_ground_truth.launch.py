@@ -77,9 +77,9 @@ def generate_launch_description():
     """
     Ground-truth localization on a single REP-105 chain.
 
-    DiffDrive odometry starts at (0, 0) in the odom frame. map -> odom is
-    the pose that places the Gazebo walls on the saved map, including yaw.
-    ros_gz_sim create spawns sim_robot. AMCL and slam_toolbox are not
+    OdometryPublisher writes odom -> base_link from the simulated world pose.
+    DiffDrive only turns the wheels. map -> odom is the rigid alignment of
+    the Gazebo world onto the saved map. AMCL and slam_toolbox are not
     started. lifecycle_manager_navigation activates map_server.
 
     Usage:
