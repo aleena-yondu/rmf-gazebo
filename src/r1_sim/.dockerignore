@@ -1,3 +1,5 @@
 .git
 **/__pycache__
 **/*.pyc
+maps/*.data
+maps/*.posegraph

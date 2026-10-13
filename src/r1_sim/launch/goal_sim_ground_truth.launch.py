@@ -18,15 +18,12 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-def _load_alignment():
-    import sys
-    script = Path(__file__).resolve().parent.parent / 'src' / 'align_map_to_gazebo.py'
-    spec = importlib.util.spec_from_file_location('align_map_to_gazebo', script)
+def _robot_description(model_sdf):
+    script = Path(__file__).resolve().parent.parent / 'src' / 'sdf_to_urdf.py'
+    spec = importlib.util.spec_from_file_location('sdf_to_urdf', script)
     module = importlib.util.module_from_spec(spec)
-    # Register before exec so the dataclass in that file can see its module.
-    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module.align()
+    return module.convert(model_sdf)
 
 
 def _gazebo(context, *args, **kwargs):
@@ -47,39 +44,15 @@ def _gazebo(context, *args, **kwargs):
     ]
 
 
-def _spawn_and_map_tf(context, *args, **kwargs):
-    fit = _load_alignment()
-    static_tf_map_to_odom = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='static_tf_map_to_odom',
-        output='screen',
-        arguments=[
-            '--x', f'{fit.map_x:.2f}',
-            '--y', f'{fit.map_y:.2f}',
-            '--z', f'{fit.map_z:.2f}',
-            '--roll', '0',
-            '--pitch', '0',
-            '--yaw', f'{fit.map_yaw:.4f}',
-            '--frame-id', 'map',
-            '--child-frame-id', 'odom',
-        ],
-        parameters=[{'use_sim_time': True}],
-    )
-    return [
-        LogInfo(msg='\n' + fit.report),
-        static_tf_map_to_odom,
-    ]
-
-
 def generate_launch_description():
     """
     Ground-truth localization on a single REP-105 chain.
 
-    OdometryPublisher writes odom -> base_link from the simulated world pose.
-    DiffDrive only turns the wheels. map -> odom is the rigid alignment of
-    the Gazebo world onto the saved map. AMCL and slam_toolbox are not
-    started. lifecycle_manager_navigation activates map_server.
+    OdometryPublisher writes odom -> base_link from the simulated world pose,
+    so odom is the Gazebo world frame. yondu_simmap was built by slam_toolbox
+    on that same odometry, so map -> odom is identity and map coordinates are
+    Gazebo coordinates. AMCL and slam_toolbox are not started.
+    lifecycle_manager_navigation activates map_server.
 
     Usage:
         ros2 launch r1_sim goal_sim_ground_truth.launch.py
@@ -101,8 +74,8 @@ def generate_launch_description():
     declare_world_arg = DeclareLaunchArgument(
         'world',
         default_value=os.path.join(
-            pkg_r1_sim, 'worlds', 'yondu_warehouse_sim_spawn.sdf'),
-        description='Warehouse world. sim_robot is included at the aligned spawn.'
+            pkg_r1_sim, 'worlds', 'robotnik_warehouse_r1.sdf'),
+        description='Warehouse world. robot_1 is included in the world file.'
     )
     declare_rviz_config_arg = DeclareLaunchArgument(
         'rviz_config',
@@ -114,16 +87,16 @@ def generate_launch_description():
         default_value=sim_map_yaml,
         description='Full path to map YAML file'
     )
-    # yondu_simmap: origin (-21.428, 16.507), 378 x 399 px, 0.05 m/px.
+    # yondu_simmap: origin (-9.635, -9.732), 397 x 391 px, 0.05 m/px.
     declare_goal_x_arg = DeclareLaunchArgument(
         'goal_x',
-        default_value='-8.5',
-        description='Goal x in the map frame. Valid map x is -21.43 to -2.53.'
+        default_value='-6.0',
+        description='Goal x in the map frame. Valid map x is -9.63 to 10.21.'
     )
     declare_goal_y_arg = DeclareLaunchArgument(
         'goal_y',
-        default_value='26.5',
-        description='Goal y in the map frame. Valid map y is 16.51 to 36.46.'
+        default_value='0.0',
+        description='Goal y in the map frame. Valid map y is -9.73 to 9.81.'
     )
     declare_headless_arg = DeclareLaunchArgument(
         'headless',
@@ -144,10 +117,11 @@ def generate_launch_description():
     startup_banner = LogInfo(
         msg='\n' + '=' * 70 + '\n'
         + '  GOAL SIMULATION - ground truth REP-105\n'
-        + '  Map x range: -21.43 to -2.53\n'
-        + '  Map y range:  16.51 to 36.46\n'
+        + '  Map frame = Gazebo world frame.\n'
+        + '  Map x range: -9.63 to 10.21\n'
+        + '  Map y range: -9.73 to  9.81\n'
         + '  Pick a free cell inside that box, then:\n'
-        + '    goal_x:=-8.5 goal_y:=26.5\n'
+        + '    goal_x:=-6.0 goal_y:=0.0\n'
         + '  Open-RMF should send NavigateToPose itself. These args are for a test goal.\n'
         + '=' * 70
     )
@@ -161,27 +135,35 @@ def generate_launch_description():
         arguments=[
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
-            '/model/sim_robot/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-            '/model/sim_robot/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+            '/model/robot_1/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+            '/model/robot_1/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
             '/cmd_vel@geometry_msgs/msg/TwistStamped]gz.msgs.Twist',
         ],
         remappings=[
-            ('/model/sim_robot/odometry', '/odom'),
-            ('/model/sim_robot/tf', '/tf'),
+            ('/model/robot_1/odometry', '/odom'),
+            ('/model/robot_1/tf', '/tf'),
         ],
     )
 
-    static_tf_lidar = Node(
+    # Publishes /robot_description for RViz and the fixed base_link -> os_lidar chain.
+    robot_state_publisher = Node(
+        package='robot_state_publisher',
+        executable='robot_state_publisher',
+        name='robot_state_publisher',
+        output='screen',
+        parameters=[{
+            'use_sim_time': True,
+            'robot_description': _robot_description(
+                os.path.join(pkg_r1_sim, 'models', 'robot_1', 'model.sdf')),
+        }],
+    )
+
+    static_tf_map_to_odom = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='static_tf_base_to_lidar',
+        name='static_tf_map_to_odom',
         output='screen',
-        arguments=[
-            '--x', '0', '--y', '0', '--z', '0.14',
-            '--roll', '0', '--pitch', '0', '--yaw', '0',
-            '--frame-id', 'base_link',
-            '--child-frame-id', 'sim_robot/lidar_link/gpu_lidar',
-        ],
+        arguments=['--frame-id', 'map', '--child-frame-id', 'odom'],
         parameters=[{'use_sim_time': True}],
     )
 
@@ -236,9 +218,9 @@ def generate_launch_description():
         declare_use_rviz_arg,
         declare_send_test_goal_arg,
         OpaqueFunction(function=_gazebo),
-        OpaqueFunction(function=_spawn_and_map_tf),
+        static_tf_map_to_odom,
         ros_gz_bridge,
-        static_tf_lidar,
+        robot_state_publisher,
         map_server_node,
         TimerAction(period=8.0, actions=[nav2_navigation_launch]),
         TimerAction(

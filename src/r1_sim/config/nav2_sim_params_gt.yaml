@@ -1,10 +1,10 @@
 # ==================================================================================================
 #                       Nav2 Parameters for GOAL Simulation
 #
-# Adapted from nav2_goal_params.yaml for a simulated diff-drive robot.
+# Adapted from nav2_goal_params.yaml for the simulated holonomic R1 (robot_1).
 # Key differences from real robot config:
 #   - use_sim_time: true
-#   - Circular footprint (0.25m radius) matching sim_robot model
+#   - Hexagon footprint matching the robot_1 collision outline
 #   - robot_base_frame: base_link (OdometryPublisher writes odom -> base_link)
 # ==================================================================================================
 
@@ -41,7 +41,7 @@ controller_server:
     controller_plugins: ["FollowPath"]
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
-      motion_model: "DiffDrive"
+      motion_model: "Omni"
       time_steps: 40
       model_dt: 0.1
       batch_size: 1200
@@ -59,9 +59,12 @@ controller_server:
       # Reverse at the same speed as forward so the controller can
       # back out of a corridor instead of crawling at a few cm/s.
       vx_min: -0.9
+      vy_max: 0.5
+      vy_std: 0.25
       wz_max: 1.5
       ax_max: 0.5
       ax_min: -0.5
+      ay_max: 0.5
       az_max: 1.5
       rotation_scale_factor: 1.0
 
@@ -86,7 +89,7 @@ controller_server:
       ObstaclesCritic:
         enabled: true
         weight: 5.0
-        consider_footprint: false
+        consider_footprint: true
         collision_cost: 10000.0
         collision_margin_distance: 0.10
         # Increased from 0.5 to 1.0 so the critic relaxes obstacle
@@ -256,7 +259,8 @@ global_costmap:
       # after reaching a shelf target; at 0.22 that puts it in
       # inscribed (lethal) space and the planner refuses to plan.
       # Physical safety is maintained by collision_monitor (0.22 m).
-      robot_radius: 0.18
+      footprint: "[[0.24, 0.34], [-0.10, 0.34], [-0.40, 0.12], [-0.40, -0.12], [-0.10, -0.34], [0.24, -0.34]]"
+      footprint_padding: 0.02
       resolution: 0.05
       track_unknown_space: true
       rolling_window: false
@@ -289,7 +293,7 @@ global_costmap:
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.25
+        inflation_radius: 0.45
         cost_scaling_factor: 10.0
 
 local_costmap:
@@ -304,7 +308,8 @@ local_costmap:
       width: 5
       height: 5
       resolution: 0.05
-      robot_radius: 0.18
+      footprint: "[[0.24, 0.34], [-0.10, 0.34], [-0.40, 0.12], [-0.40, -0.12], [-0.10, -0.34], [0.24, -0.34]]"
+      footprint_padding: 0.02
       transform_tolerance: 2.0
 
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -335,7 +340,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 10.0
-        inflation_radius: 0.25
+        inflation_radius: 0.45
 
       always_send_full_costmap: true
 
@@ -346,10 +351,10 @@ velocity_smoother:
     smoothing_frequency: 10.0
     scale_velocities: false
     feedback: "OPEN_LOOP"
-    max_velocity: [0.9, 0.0, 1.5]
-    min_velocity: [-0.9, 0.0, -1.5]
-    max_accel: [0.5, 0.0, 1.5]
-    max_decel: [-0.5, 0.0, -1.5]
+    max_velocity: [0.9, 0.5, 1.5]
+    min_velocity: [-0.9, -0.5, -1.5]
+    max_accel: [0.5, 0.5, 1.5]
+    max_decel: [-0.5, -0.5, -1.5]
     odom_topic: "/odom"
     odom_duration: 0.1
     deadband_velocity: [0.001, 0.001, 0.001]
@@ -369,8 +374,8 @@ collision_monitor:
     enable_stamped_cmd_vel: True
     polygons: ["PolygonStop"]
     PolygonStop:
-      type: "circle"
-      radius: 0.22
+      type: "polygon"
+      points: "[[0.30, 0.38], [-0.44, 0.38], [-0.44, -0.38], [0.30, -0.38]]"
       action_type: "stop"
       min_points: 12
       visualize: False

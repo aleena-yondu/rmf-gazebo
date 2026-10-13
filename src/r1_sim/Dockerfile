@@ -12,8 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3-yaml \
         ros-jazzy-nav2-bringup \
         ros-jazzy-rmf-building-sim-gz-plugins \
+        ros-jazzy-robot-state-publisher \
         ros-jazzy-ros-gz \
         ros-jazzy-rviz2 \
+        ros-jazzy-slam-toolbox \
+        ros-jazzy-teleop-twist-keyboard \
         libegl1 \
         libegl-mesa0 \
         libgl1 \
