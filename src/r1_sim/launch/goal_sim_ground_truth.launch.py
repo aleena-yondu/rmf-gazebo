@@ -62,6 +62,7 @@ def generate_launch_description():
     sim_models_dir = os.path.join(pkg_r1_sim, 'models')
     sim_map_yaml = os.path.join(pkg_r1_sim, 'maps', 'yondu_simmap.yaml')
     nav2_params_file = os.path.join(pkg_r1_sim, 'config', 'nav2_sim_params_gt.yaml')
+    bridge_config_file = os.path.join(pkg_r1_sim, 'config', 'ros_gz_bridge.yaml')
 
     gz_resource_path = SetEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
@@ -131,18 +132,10 @@ def generate_launch_description():
         executable='parameter_bridge',
         name='ros_gz_bridge',
         output='screen',
-        parameters=[{'use_sim_time': True}],
-        arguments=[
-            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-            '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
-            '/model/robot_1/odometry@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-            '/model/robot_1/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
-            '/cmd_vel@geometry_msgs/msg/TwistStamped]gz.msgs.Twist',
-        ],
-        remappings=[
-            ('/model/robot_1/odometry', '/odom'),
-            ('/model/robot_1/tf', '/tf'),
-        ],
+        parameters=[{
+            'config_file': bridge_config_file,
+            'use_sim_time': True,
+        }],
     )
 
     # Publishes /robot_description for RViz and the fixed base_link -> os_lidar chain.
