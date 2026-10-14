@@ -1,15 +1,15 @@
 # ==================================================================================================
 #                       Nav2 Parameters for GOAL Simulation
 #
-# Adapted from nav2_goal_params.yaml for a simulated diff-drive robot.
+# Adapted from nav2_goal_params.yaml for the simulated holonomic R1 (robot_1).
 # Key differences from real robot config:
 #   - use_sim_time: true
-#   - Circular footprint (0.25m radius) matching sim_robot model
+#   - Hexagon footprint matching the robot_1 collision outline
 #   - robot_base_frame: base_link (OdometryPublisher writes odom -> base_link)
 #
-# Mapping variant of nav2_sim_params_gt.yaml for mapping_sim.launch.py.
-# slam_toolbox publishes /map and map -> odom, so map_server is not managed,
-# and the planner may route through unknown space.
+# Mapping variant of nav2_sim_params_gt.yaml, used with slam_toolbox and
+# launch/navigation_sim.launch.py. slam_toolbox publishes /map and map -> odom,
+# so map_server is not managed, and the planner may route through unknown space.
 # ==================================================================================================
 
 controller_server:
