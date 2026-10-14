@@ -187,7 +187,7 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
-        sim_robot/lidar_link/gpu_lidar:
+        os_lidar:
           Value: true
       Marker Scale: 0.5
       Name: TF

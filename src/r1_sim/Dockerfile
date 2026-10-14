@@ -34,7 +34,7 @@ COPY config /ws/src/r1_sim/config
 COPY models /ws/src/r1_sim/models
 COPY worlds /ws/src/r1_sim/worlds
 COPY maps /ws/src/r1_sim/maps
-COPY src /ws/src/r1_sim/src
+COPY scripts /ws/src/r1_sim/scripts
 COPY rviz /ws/src/r1_sim/rviz
 
 RUN . /opt/ros/jazzy/setup.sh \

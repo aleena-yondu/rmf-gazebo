@@ -19,7 +19,7 @@ from launch_ros.actions import Node
 
 
 def _robot_description(model_sdf):
-    script = Path(__file__).resolve().parent.parent / 'src' / 'sdf_to_urdf.py'
+    script = Path(__file__).resolve().parent.parent / 'scripts' / 'sdf_to_urdf.py'
     spec = importlib.util.spec_from_file_location('sdf_to_urdf', script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

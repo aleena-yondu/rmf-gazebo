@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print a visual-only URDF for an SDF model, for robot_state_publisher and RViz.
 
-    python3 src/sdf_to_urdf.py models/robot_1/model.sdf
+    python3 scripts/sdf_to_urdf.py models/robot_1/model.sdf
 
 Only links, fixed or moving joints, and mesh/box/cylinder/sphere visuals are
 converted. model:// URIs resolve against the directory that holds the model.

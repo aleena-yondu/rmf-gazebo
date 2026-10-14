@@ -10,8 +10,13 @@ install(DIRECTORY
   config
   maps
   rviz
-  src
+  scripts
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  scripts/sdf_to_urdf.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()
