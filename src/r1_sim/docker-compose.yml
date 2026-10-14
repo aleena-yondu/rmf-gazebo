@@ -6,6 +6,7 @@ services:
     ipc: host
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      GZ_PARTITION: ${GZ_PARTITION:-r1}
     command: ["headless"]
   gui:
     image: r1-sim:jazzy
@@ -16,6 +17,7 @@ services:
       DISPLAY: ${DISPLAY}
       LIBGL_ALWAYS_SOFTWARE: "1"
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      GZ_PARTITION: ${GZ_PARTITION:-r1}
       QT_X11_NO_MITSHM: "1"
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix

@@ -21,6 +21,7 @@ PACKAGE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 IMAGE_NAME="${R1_IMAGE_NAME:-r1-sim:jazzy}"
 CONTAINER_NAME="${R1_CONTAINER_NAME:-gazebo_sim}"
 ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
+GZ_PARTITION="${GZ_PARTITION:-r1}"
 
 BUILD_IMAGE=false
 GUI=false
@@ -55,6 +56,7 @@ RUN_ARGS=(
     --net=host
     --ipc=host
     -e "ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
+    -e "GZ_PARTITION=${GZ_PARTITION}"
 )
 
 MODE="headless"
@@ -69,7 +71,7 @@ if [ "$GUI" = true ]; then
     )
 fi
 
-echo "Starting ${CONTAINER_NAME} (${MODE}, ROS_DOMAIN_ID=${ROS_DOMAIN_ID})"
+echo "Starting ${CONTAINER_NAME} (${MODE}, ROS_DOMAIN_ID=${ROS_DOMAIN_ID}, GZ_PARTITION=${GZ_PARTITION})"
 docker run "${RUN_ARGS[@]}" "${IMAGE_NAME}" "${MODE}"
 
 echo "Container '${CONTAINER_NAME}' started."

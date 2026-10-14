@@ -9,6 +9,10 @@ source /ws/install/setup.bash
 export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
 unset ROS_LOCALHOST_ONLY
 
+# gz-transport defaults to the partition "hostname:username", and the container
+# runs as root, so host gz tools would not see it. The host must use the same value.
+export GZ_PARTITION="${GZ_PARTITION:-r1}"
+
 mode="${1:-headless}"
 if [[ "${mode}" == "headless" || "${mode}" == "gui" ]]; then
     shift
